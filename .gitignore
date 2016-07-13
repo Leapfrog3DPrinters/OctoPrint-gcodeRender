@@ -243,3 +243,7 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+/octoprint_gcoderender/rendering/rendererlinux.py.bak
+/octoprint_gcoderender/rendering/rendererwindows.py.bak
+*.pyc
+/OctoPrint_gcodeRender.egg-info

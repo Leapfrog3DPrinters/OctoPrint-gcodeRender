@@ -2,7 +2,7 @@ import sys
 
 from math import *
 
-if sys.platform == "win32":
+if sys.platform == "win32" || sys.platform == "darwin":
     from OpenGL.GL import *
     from OpenGL.GLU import *
     import pygame
@@ -687,14 +687,11 @@ class RendererWindows(Renderer):
                 
         pygame.init()
 
-        if sys.platform == "win32":
-            if not self.show_window:
-                pygame.display.iconify()
+        if not self.show_window:
+            pygame.display.iconify()
 
-            pygame.display.set_mode((self.width, self.height), HWSURFACE|OPENGL|DOUBLEBUF)
-        else:
-            self._openWindowPi()
-        
+        pygame.display.set_mode((self.width, self.height), HWSURFACE|OPENGL|DOUBLEBUF)
+
         self.is_window_open = True
 
     
@@ -706,10 +703,7 @@ class RendererWindows(Renderer):
         glCallList(self.display_list)
         
         # Update the window
-        if sys.platform == "win32":
-            pygame.display.flip()
-        else:
-            openegl.eglSwapBuffers(self.ctx.display, self.ctx.surface)
+        pygame.display.flip()
         
 
     def _prepareDisplayList(self):
@@ -719,7 +713,7 @@ class RendererWindows(Renderer):
         glNewList(self.display_list, GL_COMPILE)
     
         # Render all vertices
-        glLineWidth(0.5)
+        glLineWidth(1)
         glColor( self.part_color )      
         glBegin(GL_LINES)
         for vertex in self.base_vertices:

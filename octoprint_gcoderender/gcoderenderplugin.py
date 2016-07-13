@@ -108,7 +108,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         t.start()
         
     def _render_gcode_watch(self):
-        if sys.platform == "win32":
+        if sys.platform == "win32" or sys.platform == "darwin":
             self.render = RendererWindows()
         else:
             self.render = RendererLinux()

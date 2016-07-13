@@ -40,13 +40,16 @@ if __name__ == "__main__":
     # Find file paths
     scriptPath = os.path.realpath(__file__)
     scriptDir = os.path.dirname(scriptPath)
-    gCodePath = os.path.join(scriptDir, "sample/spiral.gcode")
+    gCodePath = os.path.join(scriptDir, "sample/leapfrog.gcode")
 
     if sys.platform == "win32":
-        imagePath = os.path.join(scriptDir, "images/spiral.bmp")
+        imagePath = os.path.join(scriptDir, "images/leapfrog.bmp")
+        render = RendererWindows()
+    elif sys.platform == "darwin":
+        imagePath = os.path.join(scriptDir, "images/leapfrog.png")
         render = RendererWindows()
     else:
-        imagePath = os.path.join(scriptDir, "images/leapfrog_small.png")
+        imagePath = os.path.join(scriptDir, "images/leapfrog.png")
         render = RendererLinux()
 
     # Start rendering the part

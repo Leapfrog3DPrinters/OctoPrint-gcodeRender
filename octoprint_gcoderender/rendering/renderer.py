@@ -2,7 +2,7 @@ import sys
 
 from math import *
 
-if sys.platform == "win32" || sys.platform == "darwin":
+if sys.platform == "win32" or sys.platform == "darwin":
     from OpenGL.GL import *
     from OpenGL.GLU import *
     import pygame

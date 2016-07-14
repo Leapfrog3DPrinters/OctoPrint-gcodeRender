@@ -44,13 +44,13 @@ if __name__ == "__main__":
 
     if sys.platform == "win32":
         imagePath = os.path.join(scriptDir, "images/leapfrog.bmp")
-        render = RendererWindows()
+        render = RendererOpenGL()
     elif sys.platform == "darwin":
         imagePath = os.path.join(scriptDir, "images/leapfrog.png")
-        render = RendererWindows()
+        render = RendererOpenGL()
     else:
         imagePath = os.path.join(scriptDir, "images/leapfrog.png")
-        render = RendererLinux()
+        render = RendererOpenGLES()
 
     # Start rendering the part
     render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7), showWindow = False)

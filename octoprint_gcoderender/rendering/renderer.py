@@ -35,7 +35,8 @@ DEFAULT_CAMERA_DISTANCE = (-100., -100., 75.)
 
 #TODO: implement shared logic of win/linux
 class Renderer:
-    def __init__(self):
+    def __init__(self, verbose = False):
+        self.verbose = verbose
         pass
     def initialize(self):
         pass
@@ -47,10 +48,15 @@ class Renderer:
         pass
     def save(self, imageFile):
         pass
+    def logInfo(self, message):
+        #TODO: Actual logging to file
+        if self.verbose:
+            print message
 
-class RendererLinux(Renderer):
-    def __init__(self):
-        #TODO: Make a parent class to share all these properties with the windows-renderer
+class RendererOpenGLES(Renderer):
+    def __init__(self, verbose = False):
+        Renderer.__init__(self, verbose)
+        #TODO:Parent class to share all these properties with the OpenGL-renderer
         self.show_window = False
         self.is_initialized = False
         self.is_window_open = False
@@ -72,7 +78,6 @@ class RendererLinux(Renderer):
         self.movement_direction = Vector3()
         self.movement_speed = DEFAULT_CAMERA_MOVEMENT_SPEED
         self.camera_distance = DEFAULT_CAMERA_DISTANCE # Distance from object
-        #self.clock = pygame.time.Clock()
         self.program = None
         self.ctx = None
         self.position_handle = None
@@ -245,7 +250,6 @@ class RendererLinux(Renderer):
             void main()
             {
                 gl_Position = uCamera * aPosition;
-		//gl_Position = aPosition;
             }
         """
 
@@ -262,16 +266,16 @@ class RendererLinux(Renderer):
         binding = ((5, 'aPosition'),)
         
         self.program = self.ctx.get_program(vertex_shader, fragment_shader, binding, False)
-        print "Program: %s" % self.program
+        self.logInfo("Program: %s" % self.program)
         self.position_handle = opengles.glGetAttribLocation(self.program, "aPosition")
-        print "Position handle: %s" % self.position_handle
+        self.logInfo("Position handle: %s" % self.position_handle)
         self.color_handle = opengles.glGetUniformLocation(self.program, "uColor")
-        print "Color handle: %s" % self.color_handle
+        self.logInfo("Color handle: %s" % self.color_handle)
         self.camera_handle = opengles.glGetUniformLocation(self.program, "uCamera")
-        print "Camera handle: %s" % self.camera_handle
+        self.logInfo("Camera handle: %s" % self.camera_handle)
 
         opengles.glUseProgram(self.program)
-        print "Use program: %s" % hex(opengles.glGetError())
+        self.logInfo("Use program: %s" % hex(opengles.glGetError()))
 
     def _clearAll(self):
         opengles.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -300,50 +304,49 @@ class RendererLinux(Renderer):
         cvertices = eglfloats(self.base_vertices)
         
         # Draw part
-        # TODO: Make it a method, and draw two parts for sync/mirror
         opengles.glUniform4f(self.color_handle, eglfloat(self.part_color[0]), eglfloat(self.part_color[1]), eglfloat(self.part_color[2]), eglfloat(1.0))
-        print "Coloring: %s" % hex(opengles.glGetError())
-        print "Color: {0} {1} {2}".format(*self.part_color)
+        self.logInfo("Coloring: %s" % hex(opengles.glGetError()))
+        self.logInfo("Color: {0} {1} {2}".format(*self.part_color))
         opengles.glEnableClientState(GL_VERTEX_ARRAY)
-        print "Client state"
+        self.logInfo("Client state")
         vbo = eglint()
         opengles.glGenBuffers(1,ctypes.byref(vbo))
-        print "VBO: %s" % vbo.value
+        self.logInfo("VBO: %s" % vbo.value)
         opengles.glBindBuffer(GL_ARRAY_BUFFER, vbo)
-        print "Bind buffer: %s" % hex(opengles.glGetError())
-        print "N vertices: %s" % N
-        print "Buffer size: %s" % ctypes.sizeof(cvertices)
+        self.logInfo("Bind buffer: %s" % hex(opengles.glGetError()))
+        self.logInfo("N vertices: %s" % N)
+        self.logInfo("Buffer size: %s" % ctypes.sizeof(cvertices))
         opengles.glBufferData(GL_ARRAY_BUFFER, ctypes.sizeof(cvertices), cvertices, GL_STATIC_DRAW)
-        print "Buffer filled %s" % hex(opengles.glGetError())
+        self.logInfo("Buffer filled %s" % hex(opengles.glGetError()))
         #opengles.glEnableVertexAttribArray(self.position_handle)
-        print "Enable part vertex: %s" % hex(opengles.glGetError())
+        self.logInfo("Enable part vertex: %s" % hex(opengles.glGetError()))
         opengles.glBindBuffer(GL_ARRAY_BUFFER, vbo)
-        print "Bind buffer: %s" % hex(opengles.glGetError())
+        self.logInfo("Bind buffer: %s" % hex(opengles.glGetError()))
         opengles.glEnableVertexAttribArray(self.position_handle)
         opengles.glVertexAttribPointer(self.position_handle, 3, GL_FLOAT, GL_FALSE, 0, 0)
         #opengles.glEnableVertexAttribArray(self.position_handle)
-        print "Set part vertex: %s" % hex(opengles.glGetError())
+        self.logInfo("Set part vertex: %s" % hex(opengles.glGetError()))
         opengles.glBindBuffer(GL_ARRAY_BUFFER, vbo)
         opengles.glDrawArrays( GL_LINES , 0, N/3 )
-        print "Draw part tri %s" % hex(opengles.glGetError())
+        self.logInfo("Draw part tri %s" % hex(opengles.glGetError()))
         opengles.glDisableVertexAttribArray(self.position_handle)
-        print "Disable vertex array %s" % hex(opengles.glGetError())
+        self.logInfo("Disable vertex array %s" % hex(opengles.glGetError()))
         opengles.glBindBuffer(GL_ARRAY_BUFFER, 0)
-        print "Disable buffer %s" % hex(opengles.glGetError())
+        self.logInfo("Disable buffer %s" % hex(opengles.glGetError()))
         
         # Draw bed
         opengles.glUniform4f(self.color_handle, eglfloat(self.bed_color[0]), eglfloat(self.bed_color[1]), eglfloat(self.bed_color[2]), eglfloat(1.0))
-        print "Bed color %s" % hex(opengles.glGetError())
+        self.logInfo("Bed color %s" % hex(opengles.glGetError()))
         opengles.glVertexAttribPointer(self.position_handle, 3, GL_FLOAT, GL_FALSE, 0, cbedvertices)
-        print "Bed vertex array %s" % hex(opengles.glGetError())
+        self.logInfo("Bed vertex array %s" % hex(opengles.glGetError()))
         opengles.glEnableVertexAttribArray(self.position_handle)
-        print "Enable array %s" % hex(opengles.glGetError())
+        self.logInfo("Enable array %s" % hex(opengles.glGetError()))
         opengles.glDrawArrays ( GL_TRIANGLES, 0, 6 )
-        print "Draw bed array %s" % hex(opengles.glGetError())
+        self.logInfo("Draw bed array %s" % hex(opengles.glGetError()))
         opengles.glDisableVertexAttribArray(self.position_handle)
-        print "Disable array %s" % hex(opengles.glGetError())
+        self.logInfo("Disable array %s" % hex(opengles.glGetError()))
         opengles.glDeleteBuffers(1, ctypes.byref(vbo))
-        print "Delete buffer %s" % hex(opengles.glGetError())
+        self.logInfo("Delete buffer %s" % hex(opengles.glGetError()))
 
     def _updateCamera(self):
         
@@ -377,15 +380,7 @@ class RendererLinux(Renderer):
 
     def _setLighting(self):
         opengles.glEnable(GL_DEPTH_TEST)
-        #opengles.glShadeModel(GL_SMOOTH)
-
-        opengles.glClearColor(ctypes.c_float(1.0), ctypes.c_float(1.), ctypes.c_float(1.), ctypes.c_float(1.0))
-
-        #opengles.glEnable(GL_COLOR_MATERIAL)
-        #opengles.glEnable(GL_LIGHTING)
-        #opengles.glEnable(GL_LIGHT0)
-
-        #opengles.glLight(GL_LIGHT0, GL_POSITION,  (0, 1, 1, 0))
+        opengles.glClearColor(eglfloat(1.), eglfloat(1.), eglfloat(1.), eglfloat(1.))
 
     def _getVertices(self):
         vertices = []
@@ -461,8 +456,9 @@ class RendererLinux(Renderer):
                     y1 = seg.coords["Y"]
                     z1 = seg.coords["Z"]
         return vertices 
-class RendererWindows(Renderer):
-    def __init__(self):
+class RendererOpenGL(Renderer):
+    def __init__(self, verbose = False):
+        Renderer.__init__(self, verbose)
         self.show_window = False
         self.is_initialized = False
         self.is_window_open = False
@@ -669,16 +665,7 @@ class RendererWindows(Renderer):
             self.movement_direction.z = -1.0
         elif pressed[K_a]:
             self.movement_direction.z = +1.0
-        if pressed[K_w]:
-            print "Camera position: %s\r\n" % self.camera_position
-            print "Camera rotation: %s\r\n" % self.camera_rotation
-        if pressed[K_SPACE]:
-            
-            if sys.platform == "win32":
-                self.save("C:\\Users\\erikh\\OneDrive\\Programmatuur\\OctoPrint-gcodeRender\\octoprint_gcoderender\\images\\screenshot.bmp")
-            else:
-                self.save("/home/pi/OctoPrint-gcodeRender/images/screenshot.png")
-
+        
         self._updateCameraForEvents()
 
     def _openWindow(self):
@@ -693,8 +680,6 @@ class RendererWindows(Renderer):
         pygame.display.set_mode((self.width, self.height), HWSURFACE|OPENGL|DOUBLEBUF)
 
         self.is_window_open = True
-
-    
 
     def _clearAll(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

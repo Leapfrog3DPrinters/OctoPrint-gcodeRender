@@ -28,10 +28,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         return False
 
     def _on_analysis(self, entry, result):
-        print "G-Code preview render started"
-        result["preview"] = "test123"
+        self._logger.info("G-Code analysis hook")
    
     def render_gcode_hook(self, path, file_object, links=None, printer_profile=None, allow_overwrite=True, *args, **kwargs):
+        self._logger.info("G-Code preprocess hook")
         #TODO: Check if item is not already in queue
         #TODO: Better not have it during preprocessing (as it is executed before copying the file)
         #self.queueLock.acquire()
@@ -52,12 +52,12 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
-            self._logger.info("Retrieving preview info for %s" % filename)
+            #self._logger.info("Retrieving preview info for %s" % filename)
             imagePath = self._get_imagepath(filename)
             if not imagePath:
                 response = make_response(jsonify({ 'status': 'gcodenotfound'}), 200)
             elif os.path.exists(imagePath):
-                self._logger.info("Returning %s" % imagePath)
+                #self._logger.info("Returning %s" % imagePath)
                 url = url_for('plugin.gcoderender.preview', filename = filename)
                 response = make_response(jsonify({ 'status': 'ready', 'url' : url }), 200)
             else:
@@ -66,7 +66,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
                     self.render_gcode(gcodePath, filename)
                     response = make_response(jsonify({ 'status': 'rendering'}), 200)
                 else:
-                    self._logger.info("Not found")
+                    #self._logger.info("Not found")
                     response = make_response(jsonify({ 'status': 'notfound'}), 200)
 
         return self._make_no_cache(response)
@@ -79,10 +79,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             self._logger.info("Retrieving preview for %s" % filename)
             imagePath = self._get_imagepath(filename)
             if os.path.exists(imagePath):
-                self._logger.info("Returning %s" % imagePath)
+                #self._logger.info("Returning %s" % imagePath)
                 response = send_file(imagePath)
             else:
-                self._logger.info("Not found")
+                #self._logger.info("Not found")
                 response = make_response('No preview ready', 404)
 
         return self._make_no_cache(response)
@@ -109,9 +109,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         
     def _render_gcode_watch(self):
         if sys.platform == "win32" or sys.platform == "darwin":
-            self.render = RendererWindows()
+            self.render = RendererOpenGL()
         else:
-            self.render = RendererLinux()
+            self.render = RendererOpenGLES()
 
         self.render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.75, 0.75, 0.75), width = 250, height = 250)
         

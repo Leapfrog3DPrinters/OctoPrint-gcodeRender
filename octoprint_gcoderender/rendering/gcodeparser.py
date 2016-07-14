@@ -8,11 +8,12 @@ class GcodeParser:
         self.model = GcodeModel(self)
         self.parts_to_parse = set(["BRIM", "CONTOUR", "LAYER_NO", "layer", "skirt", "solid", "outer", "inner"]) 
         self.skip_gcode_part = False # Ensure first bits are parsed no matter what
-        self.do_g1 = self.model.do_G1
+        
         
     def parseFile(self, path):
+        do_g1 = self.model.do_G1
         # read the gcode file
-        t0 = time.clock()
+        #t0 = time.clock()
         with open(path, 'r') as f:
             # init line counter
             self.lineNb = 0
@@ -38,7 +39,7 @@ class GcodeParser:
                     args = comm[1] if (len(comm)>1) else None
             
                     if code == "G1" or code == "G0":
-                        self.do_g1(self.parseArgs(args)) #Speed optimization. Somehow it's faster to keep parseArgs as function call
+                        do_g1(self.parseArgs(args)) #Speed optimization. Somehow it's faster to keep parseArgs as function call
                     elif code == "G20":
                         self.parse_G20(args)
                     elif code == "G21":
@@ -59,11 +60,11 @@ class GcodeParser:
                         self.skip_gcode_part = False
                     else:
                         self.skip_gcode_part = True
-        t1 = time.clock()    
-        print "Parse: %s" % (t1-t0)
+        #t1 = time.clock()    
+        #print "Parse: %s" % (t1-t0)
         self.model.postProcess()
-        t2 = time.clock()
-        print "Post process: %s" % (t2-t1)
+        #t2 = time.clock()
+        #print "Post process: %s" % (t2-t1)
 
         return self.model
         

@@ -20,9 +20,12 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 ):
     def initialize(self):
         octoprint.server.analysisQueue.register_finish_callback(self._on_analysis)
+        self.renderJobsWatch = []
+
         self.renderJobs = Queue.Queue()
         self.queueLock = threading.Lock()
         self._start_render_thread()
+
         
     def is_blueprint_protected(self):
         return False
@@ -41,11 +44,15 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         pass
 
     def render_gcode(self, path, filename):
-        #TODO: Check if item is not already in queue
-        self.queueLock.acquire()
-        self.renderJobs.put({ "path": path, "filename": filename})
-        self._logger.info("Render job enqueued: %s" % filename)
-        self.queueLock.release()
+            self.queueLock.acquire()
+            if not filename in self.renderJobsWatch:
+                self.renderJobsWatch.append(filename) # No need to remove them for now. Should be no occassion in which render file is removed.
+                self.renderJobs.put({ "path": path, "filename": filename})
+                self._logger.info("Render job enqueued: %s" % filename)
+            else:
+                self._logger.info("Already enqueued: %s" % filename)
+            self.queueLock.release()
+        
 
     @octoprint.plugin.BlueprintPlugin.route("/previewstatus/<filename>/<make>", methods=["GET"])
     def previewstatus(self, filename, make):
@@ -119,9 +126,13 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             self.queueLock.acquire()
             if not self.renderJobs.empty():
                 job = self.renderJobs.get()
-                path, filename = job
                 self._logger.info("Job found: %s" % job['filename'])
+                self.queueLock.release()
                 self._render_gcode_worker(job['path'], job['filename'])
+                self.queueLock.acquire()
+                self.renderJobsWatch.remove(job['filename'])
+                self.renderJobs.task_done()
+
             self.queueLock.release()
             time.sleep(0.5) #TODO: find another way to reduce CPU
 

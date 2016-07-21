@@ -31,15 +31,15 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         return False
 
     def _on_analysis(self, entry, result):
-        self._logger.info("G-Code analysis hook")
+        self._logger.debug("G-Code analysis hook")
    
     def render_gcode_hook(self, path, file_object, links=None, printer_profile=None, allow_overwrite=True, *args, **kwargs):
-        self._logger.info("G-Code preprocess hook")
+        self._logger.debug("G-Code preprocess hook")
         #TODO: Check if item is not already in queue
         #TODO: Better not have it during preprocessing (as it is executed before copying the file)
         #self.queueLock.acquire()
         #self.renderJobs.put({ "path": path, "filename": file_object.filename})
-        #self._logger.info("Render job enqueued: %s" % file_object.filename)
+        #self._logger.debug("Render job enqueued: %s" % file_object.filename)
         #self.queueLock.release()
         pass
 
@@ -48,9 +48,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             if not filename in self.renderJobsWatch:
                 self.renderJobsWatch.append(filename) # No need to remove them for now. Should be no occassion in which render file is removed.
                 self.renderJobs.put({ "path": path, "filename": filename})
-                self._logger.info("Render job enqueued: %s" % filename)
+                self._logger.debug("Render job enqueued: %s" % filename)
             else:
-                self._logger.info("Already enqueued: %s" % filename)
+                self._logger.debug("Already enqueued: %s" % filename)
             self.queueLock.release()
         
 
@@ -59,12 +59,12 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
-            #self._logger.info("Retrieving preview info for %s" % filename)
+            #self._logger.debug("Retrieving preview info for %s" % filename)
             imagePath = self._get_imagepath(filename)
             if not imagePath:
                 response = make_response(jsonify({ 'status': 'gcodenotfound'}), 200)
             elif os.path.exists(imagePath):
-                #self._logger.info("Returning %s" % imagePath)
+                #self._logger.debug("Returning %s" % imagePath)
                 url = url_for('plugin.gcoderender.preview', filename = filename)
                 response = make_response(jsonify({ 'status': 'ready', 'url' : url }), 200)
             else:
@@ -73,7 +73,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
                     self.render_gcode(gcodePath, filename)
                     response = make_response(jsonify({ 'status': 'rendering'}), 200)
                 else:
-                    #self._logger.info("Not found")
+                    #self._logger.debug("Not found")
                     response = make_response(jsonify({ 'status': 'notfound'}), 200)
 
         return self._make_no_cache(response)
@@ -83,13 +83,13 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
-            self._logger.info("Retrieving preview for %s" % filename)
+            self._logger.debug("Retrieving preview for %s" % filename)
             imagePath = self._get_imagepath(filename)
             if os.path.exists(imagePath):
-                #self._logger.info("Returning %s" % imagePath)
+                #self._logger.debug("Returning %s" % imagePath)
                 response = send_file(imagePath)
             else:
-                #self._logger.info("Not found")
+                #self._logger.debug("Not found")
                 response = make_response('No preview ready', 404)
 
         return self._make_no_cache(response)
@@ -126,7 +126,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             self.queueLock.acquire()
             if not self.renderJobs.empty():
                 job = self.renderJobs.get()
-                self._logger.info("Job found: %s" % job['filename'])
+                self._logger.debug("Job found: %s" % job['filename'])
                 self.queueLock.release()
                 self._render_gcode_worker(job['path'], job['filename'])
                 self.queueLock.acquire()
@@ -149,13 +149,13 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         imagePath = self._get_imagepath(filename)
        
-        self._logger.info("Image path: {}".format(imagePath))
+        self._logger.debug("Image path: {}".format(imagePath))
         
         self.render.renderModel(path, True)
         self.render.save(imagePath)
         #render.close()
 
-        self._logger.info("Render complete")
+        self._logger.debug("Render complete")
         # Threading issues: url_for('plugin.gcoderender.preview', filename = filename)
         url = '/plugin/gcoderender/preview/%s' % filename
          

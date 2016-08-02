@@ -30,7 +30,6 @@ def __plugin_load__():
     __plugin_implementation__ = GCodeRenderPlugin()
     
     __plugin_hooks__ = {
-        "octoprint.filemanager.preprocessor": __plugin_implementation__.render_gcode_hook
     }
 
 ### Standalone starts here

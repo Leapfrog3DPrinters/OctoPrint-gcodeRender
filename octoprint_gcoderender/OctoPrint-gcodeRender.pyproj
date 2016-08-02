@@ -66,21 +66,15 @@
     <Folder Include="rendering\" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="rendering\pyopengles\egl.pyc" />
     <Content Include="rendering\pyopengles\EGL\egl.h" />
     <Content Include="rendering\pyopengles\EGL\eglext.h" />
     <Content Include="rendering\pyopengles\EGL\eglplatform.h" />
-    <Content Include="rendering\pyopengles\gl2.pyc" />
-    <Content Include="rendering\pyopengles\gl2ext.pyc" />
     <Content Include="rendering\pyopengles\GLES2\gl2.h" />
     <Content Include="rendering\pyopengles\GLES2\gl2ext.h" />
     <Content Include="rendering\pyopengles\GLES2\gl2platform.h" />
     <Content Include="rendering\pyopengles\GLES\gl.h" />
     <Content Include="rendering\pyopengles\GLES\glext.h" />
     <Content Include="rendering\pyopengles\GLES\glplatform.h" />
-    <Content Include="rendering\pyopengles\pymouse.pyc" />
-    <Content Include="rendering\pyopengles\pyopengles.pyc" />
-    <Content Include="rendering\pyopengles\__init__.pyc" />
     <Content Include="sample\acorn.gcode" />
     <Content Include="sample\eiffel.gcode" />
     <Content Include="sample\bolt.gcode" />

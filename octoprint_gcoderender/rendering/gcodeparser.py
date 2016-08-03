@@ -6,7 +6,7 @@ class GcodeParser:
     
     def __init__(self):
         self.model = GcodeModel(self)
-        self.parts_to_parse = set(["BRIM", "CONTOUR", "LAYER_NO", "layer", "skirt", "solid", "outer", "inner"]) 
+        self.parts_to_parse = set(["BRIM", "CONTOUR", "LAYER_NO", "UP", "DOWN", "layer", "skirt", "solid", "outer", "inner"]) 
         self.skip_gcode_part = False # Ensure first bits are parsed no matter what
         
         

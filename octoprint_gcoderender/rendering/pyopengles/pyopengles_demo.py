@@ -10,7 +10,6 @@ class demo():
         N=1024
         log=(ctypes.c_char*N)()
         loglen=ctypes.c_int()
-ctypes.ui
         opengles.glGetShaderInfoLog(shader,N,ctypes.byref(loglen),ctypes.byref(log))
         print log.value
 

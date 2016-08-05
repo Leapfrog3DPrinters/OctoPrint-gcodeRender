@@ -5,6 +5,7 @@ import threading
 import Queue
 
 from flask import make_response, send_file, url_for, jsonify
+from tinydb import TinyDB, Query 
 from random import randint
 
 from octoprint_gcoderender.rendering.renderer import *
@@ -13,88 +14,160 @@ import octoprint.plugin
 import octoprint.filemanager
 import octoprint.filemanager.util
 from octoprint.server.util import noCachingResponseHandler
+from octoprint.events import Events
 
 class GCodeRenderPlugin(octoprint.plugin.StartupPlugin, 
                         octoprint.plugin.SettingsPlugin,
+                        octoprint.plugin.EventHandlerPlugin,
                         octoprint.plugin.BlueprintPlugin
 ):
     def initialize(self):
-        octoprint.server.analysisQueue.register_finish_callback(self._on_analysis)
+        os.stat_float_times(False)
+
+        self.preview_extension = "png"
+
+        if sys.platform == "win32":
+            self.preview_extension = "bmp"
+
+        self.renderJobsWatch = []
+
+        self._prepareDatabase()
+
+        self.cleanup()
+
         self.renderJobs = Queue.Queue()
         self.queueLock = threading.Lock()
         self._start_render_thread()
+
+    def _prepareDatabase(self):
+        self.previews_database_path = os.path.join(self.get_plugin_data_folder(), "previews.json")
+        self.previews_database = TinyDB(self.previews_database_path)
+        self._previews_query = Query() # underscore for blueprintapi compatability
+    
+    def _updateAllPreviews(self):
+        uploads_folder = self._settings.global_get_basefolder('uploads')
+
+        # TODO: Recursive
+        for entry in os.listdir(uploads_folder):
+            entry_path = os.path.join(uploads_folder, entry)
+
+            if os.path.isfile(entry_path):
+                file_type = octoprint.filemanager.get_file_type(entry)
+                if(file_type):
+                    if file_type[0] is "machinecode":
+                        self._updatePreview(entry_path, entry)
+   
+    def _updatePreview(self, path, filename):
+        db_entry = self.previews_database.get(self._previews_query.path == path)
+        modtime = os.path.getmtime(path)
+        if db_entry is None or db_entry["modtime"] != modtime or not os.path.exists(db_entry["previewPath"]):
+            self.render_gcode(path, filename, modtime)
+
+    def cleanup(self):
+        #Loop through database, remove items not found in upload or preview folder
+        db_entries = self.previews_database.all()
+        for db_entry in db_entries:
+            if not os.path.exists(db_entry["previewPath"]) or not os.path.exists(db_entry["path"]):
+                self.previews_database.remove(eids=[db_entry.eid])
+                self._logger.debug("Removed from preview database: %s" % db_entry["filename"])
         
+        #Loop through images, remove items not found in db
+        image_folder = self._get_image_folder()
+        for entry in os.listdir(image_folder):
+            entry_path = os.path.join(image_folder, entry)
+
+            if entry_path.endswith(self.preview_extension) and \
+                not self.previews_database.contains(self._previews_query.previewPath == entry_path):
+                try:
+                    os.remove(entry_path)
+                    self._logger.debug("Removed preview %s" % entry_path)
+                except Exception:
+                    self._logger.debug("Could not remove preview %s" % entry_path)
+        
+
+    def on_event(self, event, payload, *args, **kwargs):
+        if event == Events.UPDATED_FILES:
+            self._updateAllPreviews()
+
+        #if event == Events.METADATA_ANALYSIS_STARTED and payload["origin"] == "local":
+        #    self._logger.debug("Metadata analysis started: %s" % payload["path"])
+
+        #    if not payload["file"]:
+        #        _, filename = octoprint.server.fileManager.split_path("local", payload["path"])
+        #    else:
+        #        filename = payload["file"]
+
+        #    fullpath = os.path.join(self._settings.global_get_basefolder('uploads'), payload["path"])
+
+        #    self._logger.debug("Going to render: %s" % fullpath)
+        #    self.render_gcode(fullpath, filename) 
+        pass
+
     def is_blueprint_protected(self):
         return False
 
-    def _on_analysis(self, entry, result):
-        print "G-Code preview render started"
-        result["preview"] = "test123"
-   
-    def render_gcode_hook(self, path, file_object, links=None, printer_profile=None, allow_overwrite=True, *args, **kwargs):
-        #TODO: Check if item is not already in queue
-        #TODO: Better not have it during preprocessing (as it is executed before copying the file)
-        #self.queueLock.acquire()
-        #self.renderJobs.put({ "path": path, "filename": file_object.filename})
-        #self._logger.info("Render job enqueued: %s" % file_object.filename)
-        #self.queueLock.release()
-        pass
+    def render_gcode(self, path, filename, modtime = None):
+        if not modtime:
+             modtime = os.path.getmtime(path)
 
-    def render_gcode(self, path, filename):
-        #TODO: Check if item is not already in queue
         self.queueLock.acquire()
-        self.renderJobs.put({ "path": path, "filename": filename})
-        self._logger.info("Render job enqueued: %s" % filename)
+        if not filename in self.renderJobsWatch:
+            self.renderJobsWatch.append(filename) # No need to remove them for now. Should be no occassion in which render file is removed.
+            self.renderJobs.put({ "path": path, "filename": filename, "modtime": modtime})
+            self._logger.debug("Render job enqueued: %s" % filename)
+        else:
+            self._logger.debug("Already enqueued: %s" % filename)
         self.queueLock.release()
+        
 
     @octoprint.plugin.BlueprintPlugin.route("/previewstatus/<filename>/<make>", methods=["GET"])
     def previewstatus(self, filename, make):
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
-            self._logger.info("Retrieving preview info for %s" % filename)
-            imagePath = self._get_imagepath(filename)
-            if not imagePath:
-                response = make_response(jsonify({ 'status': 'gcodenotfound'}), 200)
-            elif os.path.exists(imagePath):
-                self._logger.info("Returning %s" % imagePath)
-                url = url_for('plugin.gcoderender.preview', filename = filename)
-                response = make_response(jsonify({ 'status': 'ready', 'url' : url }), 200)
-            else:
+            self._logger.debug("Retrieving preview status for %s" % filename)
+            db_entry = self.previews_database.get(self._previews_query.filename == filename)
+
+            if not db_entry:
                 if make:
                     gcodePath = os.path.join(self._settings.global_get_basefolder('uploads'), filename)
                     self.render_gcode(gcodePath, filename)
                     response = make_response(jsonify({ 'status': 'rendering'}), 200)
                 else:
-                    self._logger.info("Not found")
                     response = make_response(jsonify({ 'status': 'notfound'}), 200)
+            elif os.path.exists(db_entry["previewPath"]):
+                response = make_response(jsonify({ 'status': 'ready', 'previewUrl' : db_entry["previewUrl"] }), 200)
+            else:
+                self._logger.debug("Preview file not found: %s" % db_entry["previewPath"])
+                response = make_response(jsonify({ 'status': 'notfound'}), 200)
 
         return self._make_no_cache(response)
 
-    @octoprint.plugin.BlueprintPlugin.route("/preview/<filename>", methods=["GET"])
-    def preview(self, filename):
-        if not filename:
+    @octoprint.plugin.BlueprintPlugin.route("/preview/<previewFilename>", methods=["GET"])
+    def preview(self, previewFilename):
+        if not previewFilename:
             response = make_response('Invalid filename', 400)
         else:
-            self._logger.info("Retrieving preview for %s" % filename)
-            imagePath = self._get_imagepath(filename)
-            if os.path.exists(imagePath):
-                self._logger.info("Returning %s" % imagePath)
-                response = send_file(imagePath)
-            else:
-                self._logger.info("Not found")
-                response = make_response('No preview ready', 404)
+            self._logger.debug("Retrieving preview %s" % previewFilename)
 
-        return self._make_no_cache(response)
+            db_entry = self.previews_database.get(self._previews_query.previewFilename == previewFilename)
+
+            if not db_entry or not os.path.exists(db_entry["previewPath"]):
+                response = make_response('No preview ready', 404)
+            else:
+                response = send_file(db_entry["previewPath"])
+
+        #return self._make_no_cache(response)
+        return response
 
     @octoprint.plugin.BlueprintPlugin.route("/allpreviews", methods=["GET"])
     def getAllPreviews(self):
-        image_folder = self._get_image_folder()
-        entries = os.listdir(image_folder)
+        db_entries = self.previews_database.all()
+
         previews = []
-        for entry in entries:
-            name, _ = os.path.splitext(entry)
-            previews.append("%s.gcode" % name)
+        for db_entry in db_entries:
+            if os.path.exists(db_entry["previewPath"]):
+                previews.append({ "filename": db_entry["filename"], "previewUrl" : db_entry["previewUrl"] })
 
         response = make_response(jsonify({ "previews" : previews }))
 
@@ -102,16 +175,15 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         
 
     def _start_render_thread(self):
-        # TODO ensure a job isn't running twice simultaneously
         t = threading.Thread(target=self._render_gcode_watch)
         t.setDaemon(True)
         t.start()
         
     def _render_gcode_watch(self):
-        if sys.platform == "win32":
-            self.render = RendererWindows()
+        if sys.platform == "win32" or sys.platform == "darwin":
+            self.render = RendererOpenGL()
         else:
-            self.render = RendererLinux()
+            self.render = RendererOpenGLES()
 
         self.render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.75, 0.75, 0.75), width = 250, height = 250)
         
@@ -119,40 +191,68 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             self.queueLock.acquire()
             if not self.renderJobs.empty():
                 job = self.renderJobs.get()
-                path, filename = job
-                self._logger.info("Job found: %s" % job['filename'])
-                self._render_gcode_worker(job['path'], job['filename'])
+                self._logger.debug("Job found: %s" % job['filename'])
+                self.queueLock.release()
+                self._render_gcode_worker(job['path'], job['filename'], job['modtime'])
+                self.queueLock.acquire()
+                self.renderJobsWatch.remove(job['filename'])
+                self.renderJobs.task_done()
+
             self.queueLock.release()
             time.sleep(0.5) #TODO: find another way to reduce CPU
 
-    def _render_gcode_worker(self, path, filename):
+    def _render_gcode_worker(self, path, filename, modtime):
         if not octoprint.filemanager.valid_file_type(path, type="gcode"):
+             self._logger.debug('Not a valid file type: %s' % path)
              return
 
         if not os.path.exists(path):
+            self._logger.debug('File doesn\'t exist: %s' % path)
             return
 
         self._send_client_message("gcode_preview_rendering", { 
                                             "filename":  filename
                                             })
-
-        imagePath = self._get_imagepath(filename)
+        imageDest = self._get_imagepath(filename, modtime)
        
-        self._logger.info("Image path: {}".format(imagePath))
+        self._logger.debug("Image path: {}".format(imageDest["path"]))
         
         self.render.renderModel(path, True)
-        self.render.save(imagePath)
+        self.render.save(imageDest["path"])
         #render.close()
 
-        self._logger.info("Render complete")
-        # Threading issues: url_for('plugin.gcoderender.preview', filename = filename)
-        url = '/plugin/gcoderender/preview/%s' % filename
+        self._logger.debug("Render complete: %s" % filename)
+        url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
+
+        db_entry = self.previews_database.get(self._previews_query.path == path)
+        
+        if not db_entry:
+            self.previews_database.insert({ 
+                    "filename" : filename, 
+                    "path": path, 
+                    "modtime" : modtime, 
+                    "previewUrl" : url,
+                    "previewFilename" : imageDest["filename"],
+                    "previewPath" : imageDest["path"]
+                })
+        else:
+            try:
+                os.remove(db_entry["previewPath"])
+            except Exception:
+                self._logger.debug("Could not delete preview %s" % db_entry["previewPath"])
+
+            self.previews_database.update({ 
+                    "modtime" : modtime, 
+                    "previewUrl" : url,
+                    "previewPath" : imageDest["path"], 
+                    "previewFilename" : imageDest["filename"]
+                }
+                , self._previews_query.path == path)
          
         self._send_client_message("gcode_preview_ready", { 
                                                             "filename":  filename,
-                                                            "url": url
+                                                            "previewUrl": url
                                                             })
-
 
    
 
@@ -165,17 +265,20 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
     def _get_image_folder(self):
         return self._settings.get_plugin_data_folder()
 
-    def _get_imagepath(self, filename):
+    def _get_imagepath(self, filename, modtime = None):
         name, _ = os.path.splitext(filename)
 
         images_folder = self._get_image_folder()
         
-        if sys.platform == "win32":
-            imagePath = os.path.join(images_folder, "%s.bmp" % name)
-        else:
-            imagePath = os.path.join(images_folder, "%s.png" % name)
+        if not modtime:
+            modtime = time.clock()
 
-        return imagePath
+        new_filename = "{0}_{1}.{2}".format(name, modtime, self.preview_extension)
+
+
+        image_path = os.path.join(images_folder, new_filename)
+
+        return dict(path = image_path, filename = new_filename)
     
     def _send_client_message(self, message_type, data=None):
         self._logger.debug("Sending client message with type: {type}, and data: {data}".format(type=message_type, data=data))

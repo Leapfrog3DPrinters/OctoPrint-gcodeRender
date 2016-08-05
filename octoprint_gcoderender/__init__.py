@@ -30,7 +30,6 @@ def __plugin_load__():
     __plugin_implementation__ = GCodeRenderPlugin()
     
     __plugin_hooks__ = {
-        "octoprint.filemanager.preprocessor": __plugin_implementation__.render_gcode_hook
     }
 
 ### Standalone starts here
@@ -40,14 +39,17 @@ if __name__ == "__main__":
     # Find file paths
     scriptPath = os.path.realpath(__file__)
     scriptDir = os.path.dirname(scriptPath)
-    gCodePath = os.path.join(scriptDir, "sample/spiral.gcode")
+    gCodePath = os.path.join(scriptDir, "sample/leapfrog.gcode")
 
     if sys.platform == "win32":
-        imagePath = os.path.join(scriptDir, "images/spiral.bmp")
-        render = RendererWindows()
+        imagePath = os.path.join(scriptDir, "images/leapfrog.bmp")
+        render = RendererOpenGL()
+    elif sys.platform == "darwin":
+        imagePath = os.path.join(scriptDir, "images/leapfrog.png")
+        render = RendererOpenGL()
     else:
-        imagePath = os.path.join(scriptDir, "images/leapfrog_small.png")
-        render = RendererLinux()
+        imagePath = os.path.join(scriptDir, "images/leapfrog.png")
+        render = RendererOpenGLES()
 
     # Start rendering the part
     render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7), showWindow = False)

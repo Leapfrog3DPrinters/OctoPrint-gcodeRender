@@ -247,3 +247,4 @@ ModelManifest.xml
 /octoprint_gcoderender/rendering/rendererwindows.py.bak
 *.pyc
 /OctoPrint_gcodeRender.egg-info
+*.bmp

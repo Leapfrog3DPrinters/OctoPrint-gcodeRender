@@ -107,6 +107,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         return False
 
     def render_gcode(self, path, filename, modtime = None):
+        if not os.path.exists(path):
+            return
+
         if not modtime:
              modtime = os.path.getmtime(path)
 

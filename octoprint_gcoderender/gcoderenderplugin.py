@@ -4,7 +4,7 @@ import os, sys, time
 import threading
 import Queue
 
-from flask import make_response, send_file, url_for, jsonify
+from flask import request, make_response, send_file, url_for, jsonify
 from tinydb import TinyDB, Query 
 from random import randint
 
@@ -89,20 +89,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         if event == Events.UPDATED_FILES:
             self._updateAllPreviews()
 
-        #if event == Events.METADATA_ANALYSIS_STARTED and payload["origin"] == "local":
-        #    self._logger.debug("Metadata analysis started: %s" % payload["path"])
-
-        #    if not payload["file"]:
-        #        _, filename = octoprint.server.fileManager.split_path("local", payload["path"])
-        #    else:
-        #        filename = payload["file"]
-
-        #    fullpath = os.path.join(self._settings.global_get_basefolder('uploads'), payload["path"])
-
-        #    self._logger.debug("Going to render: %s" % fullpath)
-        #    self.render_gcode(fullpath, filename) 
-        pass
-
     def is_blueprint_protected(self):
         return False
 
@@ -123,8 +109,11 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self.queueLock.release()
         
 
-    @octoprint.plugin.BlueprintPlugin.route("/previewstatus/<filename>/<make>", methods=["GET"])
-    def previewstatus(self, filename, make):
+    @octoprint.plugin.BlueprintPlugin.route("/previewstatus", methods=["GET"])
+    def previewstatus(self):
+        filename = request.args.get('filename') 
+        make = request.args.get('make') == 'true'
+
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
@@ -160,7 +149,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             else:
                 response = send_file(db_entry["previewPath"])
 
-        #return self._make_no_cache(response)
         return response
 
     @octoprint.plugin.BlueprintPlugin.route("/allpreviews", methods=["GET"])
@@ -211,6 +199,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         if not os.path.exists(path):
             self._logger.debug('File doesn\'t exist: %s' % path)
+            return 
+
+        if filename.startswith("."): #TODO: Perform a more comprehensive hidden file check
+            self._logger.debug('Hidden file: %s' % path)
             return
 
         self._send_client_message("gcode_preview_rendering", { 
@@ -222,7 +214,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         
         self.render.renderModel(path, True)
         self.render.save(imageDest["path"])
-        #render.close()
 
         self._logger.debug("Render complete: %s" % filename)
         url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]

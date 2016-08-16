@@ -24,6 +24,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
     def initialize(self):
         os.stat_float_times(False)
 
+        self.renderJobs = Queue.Queue()
+        self.queueLock = threading.Lock()
+        self.dbLock = threading.Lock()
+
         self.preview_extension = "png"
 
         if sys.platform == "win32":
@@ -35,14 +39,14 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         self.cleanup()
 
-        self.renderJobs = Queue.Queue()
-        self.queueLock = threading.Lock()
         self._start_render_thread()
 
     def _prepareDatabase(self):
+        self.dbLock.acquire()
         self.previews_database_path = os.path.join(self.get_plugin_data_folder(), "previews.json")
         self.previews_database = TinyDB(self.previews_database_path)
         self._previews_query = Query() # underscore for blueprintapi compatability
+        self.dbLock.release()
     
     def _updateAllPreviews(self):
         uploads_folder = self._settings.global_get_basefolder('uploads')
@@ -58,19 +62,23 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
                         self._updatePreview(entry_path, entry)
    
     def _updatePreview(self, path, filename):
+        self.dbLock.acquire()
         db_entry = self.previews_database.get(self._previews_query.path == path)
+        self.dbLock.release()
         modtime = os.path.getmtime(path)
         if db_entry is None or db_entry["modtime"] != modtime or not os.path.exists(db_entry["previewPath"]):
             self.render_gcode(path, filename, modtime)
 
     def cleanup(self):
         #Loop through database, remove items not found in upload or preview folder
+        self.dbLock.acquire()
         db_entries = self.previews_database.all()
         for db_entry in db_entries:
             if not os.path.exists(db_entry["previewPath"]) or not os.path.exists(db_entry["path"]):
                 self.previews_database.remove(eids=[db_entry.eid])
                 self._logger.debug("Removed from preview database: %s" % db_entry["filename"])
         
+
         #Loop through images, remove items not found in db
         image_folder = self._get_image_folder()
         for entry in os.listdir(image_folder):
@@ -83,7 +91,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
                     self._logger.debug("Removed preview %s" % entry_path)
                 except Exception:
                     self._logger.debug("Could not remove preview %s" % entry_path)
-        
+        self.dbLock.release()
 
     def on_event(self, event, payload, *args, **kwargs):
         if event == Events.UPDATED_FILES:
@@ -118,7 +126,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             response = make_response('Invalid filename', 400)
         else:
             self._logger.debug("Retrieving preview status for %s" % filename)
+            self.dbLock.acquire()
             db_entry = self.previews_database.get(self._previews_query.filename == filename)
+            self.dbLock.release()
 
             if not db_entry:
                 if make:
@@ -142,7 +152,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         else:
             self._logger.debug("Retrieving preview %s" % previewFilename)
 
+            self.dbLock.acquire()
             db_entry = self.previews_database.get(self._previews_query.previewFilename == previewFilename)
+            self.dbLock.release()
 
             if not db_entry or not os.path.exists(db_entry["previewPath"]):
                 response = make_response('No preview ready', 404)
@@ -153,7 +165,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
     @octoprint.plugin.BlueprintPlugin.route("/allpreviews", methods=["GET"])
     def getAllPreviews(self):
+        self.dbLock.acquire()
         db_entries = self.previews_database.all()
+        self.dbLock.release()
 
         previews = []
         for db_entry in db_entries:
@@ -218,8 +232,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Render complete: %s" % filename)
         url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
 
+        self.dbLock.acquire()
         db_entry = self.previews_database.get(self._previews_query.path == path)
-        
+      
         if not db_entry:
             self.previews_database.insert({ 
                     "filename" : filename, 
@@ -243,6 +258,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
                 }
                 , self._previews_query.path == path)
          
+        self.dbLock.release()  
         self._send_client_message("gcode_preview_ready", { 
                                                             "filename":  filename,
                                                             "previewUrl": url

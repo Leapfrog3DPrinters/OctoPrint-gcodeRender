@@ -302,7 +302,7 @@ class RendererOpenGLES(Renderer):
         cbedvertices = eglfloats(bedvertices)
         
         N = len(self.base_vertices)
-        cvertices = eglfloats(self.base_vertices)
+        cvertices = self.base_vertices
         self.logInfo("Vertices loaded")
         # Draw part
         opengles.glUniform4f(self.color_handle, eglfloat(self.part_color[0]), eglfloat(self.part_color[1]), eglfloat(self.part_color[2]), eglfloat(1.0))
@@ -317,7 +317,7 @@ class RendererOpenGLES(Renderer):
         self.logInfo("Bind buffer: %s" % hex(opengles.glGetError()))
         self.logInfo("N vertices: %s" % N)
         self.logInfo("Buffer size: %s" % ctypes.sizeof(cvertices))
-        opengles.glBufferData(GL_ARRAY_BUFFER, ctypes.sizeof(cvertices), cvertices, GL_STATIC_DRAW)
+        opengles.glBufferData(GL_ARRAY_BUFFER, ctypes.sizeof(cvertices), ctypes.byref(cvertices), GL_STATIC_DRAW)
         self.logInfo("Buffer filled %s" % hex(opengles.glGetError()))
         #opengles.glEnableVertexAttribArray(self.position_handle)
         self.logInfo("Enable part vertex: %s" % hex(opengles.glGetError()))

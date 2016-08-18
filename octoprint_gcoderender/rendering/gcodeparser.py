@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import math, time, array
+import math, time, array, ctypes
 
 X = 0
 Y = 1
@@ -29,7 +29,7 @@ class GcodeParser:
         with open(path, 'r') as f:
             num_lines = sum(1 for line in f)
 
-        self.model = GcodeModel(num_lines*2, True)
+        self.model = GcodeModel(num_lines, True)
         do_g1 = self.model.do_G1
 
         with open(path, 'r') as f:
@@ -170,12 +170,14 @@ class GcodeModel:
         self.offset = (0.0, 0.0, 0.0, 0.0)
         # if true, args for move (G1) are given relatively (default: absolute)
         self.isRelative = False
-        self.segments = array.array('f')
+        #self.segments = array.array('f')
+        self.segments = (ctypes.c_float*(n*6))()
+        self.segmentidx = 0
         self.bbox = None
         self.printMode = 'normal'
         self.syncOffset = -1
         self.verbose = verbose
-        self.appendsegment = self.segments.extend
+        #self.appendsegment = self.segments.extend
     
     def do_G1(self, args):
         # G0/G1: Rapid/Controlled move
@@ -214,14 +216,15 @@ class GcodeModel:
             else:
                 self.bbox = BBox(absolute)
             
-            self.appendsegment((x + self.offset[X], y + self.offset[Y], z + self.offset[Z], self.relative[X], self.relative[Y], self.relative[Z]))
-
-            #self.appendsegment(x + self.offset[X])
-            #self.appendsegment(y + self.offset[Y])
-            #self.appendsegment(z + self.offset[Z])
-            #self.appendsegment(self.relative[X])
-            #self.appendsegment(self.relative[Y])
-            #self.appendsegment(self.relative[Z])
+            #self.appendsegment((x + self.offset[X], y + self.offset[Y], z + self.offset[Z], self.relative[X], self.relative[Y], self.relative[Z]))
+            i = self.segmentidx
+            self.segments[i] =  ctypes.c_float(x + self.offset[X])
+            self.segments[i+1] = ctypes.c_float(y + self.offset[Y])
+            self.segments[i+2] = ctypes.c_float(z + self.offset[Z])
+            self.segments[i+3] = ctypes.c_float(self.relative[X])
+            self.segments[i+4] = ctypes.c_float(self.relative[Y])
+            self.segments[i+5] = ctypes.c_float(self.relative[Z])
+            self.segmentidx += 6
         else:
             style = GcodeParser.FLY
 

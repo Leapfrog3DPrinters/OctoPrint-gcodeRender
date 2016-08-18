@@ -248,3 +248,4 @@ ModelManifest.xml
 *.pyc
 /OctoPrint_gcodeRender.egg-info
 *.bmp
+/octoprint_gcoderender/sample/naim.gcode

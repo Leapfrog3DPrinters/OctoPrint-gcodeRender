@@ -100,12 +100,23 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
     def is_blueprint_protected(self):
         return False
 
+    def get_settings_defaults(self):
+        return dict(
+            maxPreviewFilesize=0
+        )
+
     def render_gcode(self, path, filename, modtime = None):
         if not os.path.exists(path):
             return
 
         if not modtime:
              modtime = os.path.getmtime(path)
+        
+        #TODO: Some error handling; or return a dummy preview
+        maxFileSize = self._settings.get_int(["maxPreviewFileSize"])
+        if maxFileSize > 0 and os.path.getsize(path) > maxFileSize:
+            self._logger.warn("GCode file exceeds max preview file size: %s" % filename)
+            return
 
         self.queueLock.acquire()
         if not filename in self.renderJobsWatch:

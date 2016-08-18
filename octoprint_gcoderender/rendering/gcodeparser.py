@@ -1,25 +1,46 @@
 #!/usr/bin/env python
 
 import math, time
+import numpy as np
+
+X = 0
+Y = 1
+Z = 2
+E = 3
 
 class GcodeParser:
+
+    FLY=0
+    EXTRUDE=1
+    RETRACT=2
+    RESTORE=3
     
-    def __init__(self):
-        self.model = GcodeModel(self)
+    def __init__(self, verbose = False):
+        
         self.parts_to_parse = set(["BRIM", "CONTOUR", "LAYER_NO", "UP", "DOWN", "layer", "skirt", "solid", "outer", "inner"]) 
         self.skip_gcode_part = False # Ensure first bits are parsed no matter what
-        
-        
+        self.verbose = verbose
+                
     def parseFile(self, path):
-        do_g1 = self.model.do_G1
+       
         # read the gcode file
-        #t0 = time.clock()
+        t0 = time.clock()
+
+        #TODO: Findout if it's worth it to open the file twice
+        with open(path, 'r') as f:
+            num_lines = sum(1 for line in f)
+
+        self.model = GcodeModel(num_lines*2, True)
+        do_g1 = self.model.do_G1
+
         with open(path, 'r') as f:
             # init line counter
             self.lineNb = 0
             # for all lines
             for line in f:
                 self.lineNb += 1
+                if self.verbose and self.lineNb % 100000 == 0:
+                    print self.lineNb
                 # strip comments:
                 bits = line.split(';',1)
                 if (len(bits) > 1):
@@ -60,11 +81,9 @@ class GcodeParser:
                         self.skip_gcode_part = False
                     else:
                         self.skip_gcode_part = True
-        #t1 = time.clock()    
-        #print "Parse: %s" % (t1-t0)
-        self.model.postProcess()
-        #t2 = time.clock()
-        #print "Post process: %s" % (t2-t1)
+        t1 = time.clock()            
+        if self.verbose:
+            print "Parse: %s" % (t1-t0)
 
         return self.model
         
@@ -110,21 +129,12 @@ class GcodeParser:
         #M605 Print mode
         self.model.setPrintMode(self.parseArgs(args))        
 
-    def warn(self, msg):
-        pass
-        #print "[WARN] Line %d: %s (Text:'%s')" % (self.lineNb, msg, self.line)
-        
-    def error(self, msg):
-        pass
-        #print "[ERROR] Line %d: %s (Text:'%s')" % (self.lineNb, msg, self.line)
-        #raise Exception("[ERROR] Line %d: %s (Text:'%s')" % (self.lineNb, msg, self.line))
-
 class BBox(object):
     
     def __init__(self, coords):
-        self.xmin = self.xmax = coords["X"]
-        self.ymin = self.ymax = coords["Y"]
-        self.zmin = self.zmax = coords["Z"]
+        self.xmin = self.xmax = coords[X]
+        self.ymin = self.ymax = coords[Y]
+        self.zmin = self.zmax = coords[Z]
         
     def dx(self):
         return self.xmax - self.xmin
@@ -145,73 +155,78 @@ class BBox(object):
         return (self.zmax + self.zmin)/2
     
     def extend(self, coords):
-        self.xmin = min(self.xmin, coords["X"])
-        self.xmax = max(self.xmax, coords["X"])
-        self.ymin = min(self.ymin, coords["Y"])
-        self.ymax = max(self.ymax, coords["Y"])
-        self.zmin = min(self.zmin, coords["Z"])
-        self.zmax = max(self.zmax, coords["Z"])
+        self.xmin = min(self.xmin, coords[X])
+        self.xmax = max(self.xmax, coords[X])
+        self.ymin = min(self.ymin, coords[Y])
+        self.ymax = max(self.ymax, coords[Y])
+        self.zmin = min(self.zmin, coords[Z])
+        self.zmax = max(self.zmax, coords[Z])
         
 class GcodeModel:
     
-    def __init__(self, parser):
-        # save parser for messages
-        self.parser = parser
+    def __init__(self, n = 0, verbose = False):
         # latest coordinates & extrusion relative to offset, feedrate
-        self.relative = {
-            "X":0.0,
-            "Y":0.0,
-            "Z":0.0,
-            "F":0.0,
-            "E":0.0}
+        self.relative = (0.0, 0.0, 0.0, 0.0)
         # offsets for relative coordinates and position reset (G92)
-        self.offset = {
-            "X":0.0,
-            "Y":0.0,
-            "Z":0.0,
-            "E":0.0}
+        self.offset = (0.0, 0.0, 0.0, 0.0)
         # if true, args for move (G1) are given relatively (default: absolute)
         self.isRelative = False
-        # the segments
-        self.segments = []
-        self.layers = None
-        self.distance = None
-        self.extrudate = None
+        self.segments = np.zeros((n, 3))
+        self.segmentidx = 0
         self.bbox = None
         self.printMode = 'normal'
         self.syncOffset = -1
-        self._appendsegment = self.segments.append
+        self.verbose = verbose
     
     def do_G1(self, args):
         # G0/G1: Rapid/Controlled move
-        # clone previous coords
-        coords = dict(self.relative)
-        # update changed coords
-        for axis in args.keys():
-            if coords.has_key(axis):
-                if self.isRelative:
-                    coords[axis] += args[axis]
-                else:
-                    coords[axis] = args[axis]
+
+        if self.isRelative:
+            rel = self.relative
+        else:
+            rel = (0.0,0.0,0.0,0.0)
+
+        if args.has_key("X"):
+            x = args.get("X") + rel[X]
+        else:
+            x = self.relative[X]
+
+        if args.has_key("Y"):
+            y = args.get("Y") + rel[Y]
+        else:
+            y = self.relative[Y]
+
+        if args.has_key("Z"):
+            z = args.get("Z") + rel[Z]
+        else:
+            z = self.relative[Z]
+
+        if args.has_key("E"):
+            e = args.get("E") + rel[E]
+        else:
+            e = self.relative[E]
+        
+        absolute = (x,y,z,e)
+        
+        if e > self.relative[E]:
+            style = GcodeParser.EXTRUDE
+            if self.bbox:
+                self.bbox.extend(absolute)
             else:
-                self.warn("Unknown axis '%s'"%axis)
-        # build segment
-        absolute = {
-            "X": self.offset["X"] + coords["X"],
-            "Y": self.offset["Y"] + coords["Y"],
-            "Z": self.offset["Z"] + coords["Z"],
-            "F": coords["F"],    # no feedrate offset
-            "E": self.offset["E"] + coords["E"]
-        }
-        seg = Segment(
-            absolute)
-        self.addSegment(seg)
-        # update model coords
-        self.relative = coords
+                self.bbox = BBox(absolute)
+
+            self.segments[self.segmentidx] = (x + self.offset[X],y + self.offset[Y],z + self.offset[Z])
+            self.segments[self.segmentidx+1] = (self.relative[X], self.relative[Y], self.relative[Z])
+
+            self.segmentidx+=2
+        else:
+            style = GcodeParser.FLY
+
+        self.relative = absolute
         
     def do_G28(self, args):
         # G28: Move to Origin
-        self.warn("G28 unimplemented")
+        pass
         
     def do_G92(self, args):
         # G92: Set Position
@@ -220,14 +235,38 @@ class GcodeModel:
         # no axes mentioned == all axes to 0
         if not len(args.keys()):
             args = {"X":0.0, "Y":0.0, "Z":0.0, "E":0.0}
-        # update specified axes
-        for axis in args.keys():
-            if self.offset.has_key(axis):
-                # transfer value from relative to offset
-                self.offset[axis] += self.relative[axis] - args[axis]
-                self.relative[axis] = args[axis]
-            else:
-                self.warn("Unknown axis '%s'"%axis)
+
+        if args.has_key("X"):
+            x = args["X"]
+            offset_x = self.offset[X] + self.relative[X] - x
+        else:
+            x = self.relative[X]
+            offset_x = self.offset[X]
+
+        if args.has_key("Y"):
+            y = args["Y"]
+            offset_y = self.offset[Y] + self.relative[Y] - y
+        else:
+            y = self.relative[Y]
+            offset_y = self.offset[Y]
+
+        if args.has_key("Z"):
+            z = args["Z"]
+            offset_z = self.offset[Z] + self.relative[Z] - z
+        else:
+            z = self.relative[Z]
+            offset_z = self.offset[Z]
+
+        if args.has_key("E"):
+            e = args["E"]
+            offset_e = self.offset[E] + self.relative[E] - e
+        else:
+            e = self.relative[E]
+            offset_e = self.offset[E]
+
+        self.offset = (offset_x, offset_y, offset_z, offset_e)
+        self.relative = (x,y,z,e)     
+
     def setPrintMode(self, args):
         if 'S' in args:
             if args['S'] == 0 or args['S'] == 1:
@@ -241,59 +280,3 @@ class GcodeModel:
 
     def setRelative(self, isRelative):
         self.isRelative = isRelative
-        
-    def addSegment(self, segment):
-        #self.segments.append(segment)
-        self._appendsegment(segment) #Faster than above
-        
-    def warn(self, msg):
-        self.parser.warn(msg)
-        
-    def error(self, msg):
-        self.parser.error(msg)
-        
-    def postProcess(self):
-        # init model bbox
-        self.bbox = None
-
-        coords = {
-            "X":0.0,
-            "Y":0.0,
-            "Z":0.0,
-            "F":0.0,
-            "E":0.0}
-
-        for seg in self.segments:
-            style = "fly"
-            if (
-                (seg.coords["X"] == coords["X"]) and
-                (seg.coords["Y"] == coords["Y"]) and
-                (seg.coords["E"] != coords["E"]) ):
-                    seg.style = "retract" if (seg.coords["E"] < coords["E"]) else "restore"
-            
-            # some horizontal movement, and positive extruder movement: extrusion
-            if (
-                ( (seg.coords["X"] != coords["X"]) or (seg.coords["Y"] != coords["Y"]) ) and
-                (seg.coords["E"] > coords["E"]) ):
-                seg.style = "extrude"
-                if self.bbox:
-                    self.bbox.extend(coords)
-                else:
-                    self.bbox = BBox(coords)
-
-            coords = seg.coords
-           
-class Segment:
-    def __init__(self, coords):
-        self.coords = coords
-        self.style = None
-        self.layerIdx = None
-        self.distance = None
-        self.extrudate = None
-        
-class Layer:
-    def __init__(self, Z):
-        self.Z = Z
-        self.segments = []
-        self.distance = None
-        self.extrudate = None

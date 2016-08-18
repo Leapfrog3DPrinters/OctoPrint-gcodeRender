@@ -18,6 +18,7 @@ from matrix44 import *
 from vector3 import *
 
 from PIL import Image
+from datetime import datetime
 
 DEFAULT_WIDTH = 600
 DEFAULT_HEIGHT = 1024
@@ -51,7 +52,7 @@ class Renderer:
     def logInfo(self, message):
         #TODO: Actual logging to file
         if self.verbose:
-            print message
+            print "{time} {msg}".format(time=datetime.now(), msg=message)
 
 class RendererOpenGLES(Renderer):
     def __init__(self, verbose = False):
@@ -383,79 +384,8 @@ class RendererOpenGLES(Renderer):
         opengles.glClearColor(eglfloat(1.), eglfloat(1.), eglfloat(1.), eglfloat(1.))
 
     def _getVertices(self):
-        vertices = []
-        extend = vertices.extend
+        return self.gcode_model.segments
 
-        # if outside of for loop for performance
-        if self.gcode_model.printMode == 'mirror':
-            x1 = 0
-            y1 = 0
-            z1 = 0
-       
-            for seg in self.gcode_model.segments:
-                if seg.style is "extrude":
-                    x2 = seg.coords["X"]
-                    y2 = seg.coords["Y"]
-                    z2 = seg.coords["Z"]
-
-                    extend((x1, y1, z1))
-                    extend((x2, y2, z2))
-                    extend((self.bed_width - x1, y1, z1))
-                    extend((self.bed_width - x2, y2, z2))
-
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-                else:
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-        elif self.gcode_model.printMode == 'sync':
-
-            x1 = 0
-            y1 = 0
-            z1 = 0
-       
-            for seg in self.gcode_model.segments:
-                if seg.style is "extrude":
-                    x2 = seg.coords["X"]
-                    y2 = seg.coords["Y"]
-                    z2 = seg.coords["Z"]
-
-                    extend((x1, y1, z1))
-                    extend((x2, y2, z2))
-                    extend((self.sync_offset + x1, y1, z1))
-                    extend((self.sync_offset + x2, y2, z2))
-
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-                else:
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-        else:
-            x1 = 0
-            y1 = 0
-            z1 = 0
-       
-            for seg in self.gcode_model.segments:
-                if seg.style is "extrude":
-                    x2 = seg.coords["X"]
-                    y2 = seg.coords["Y"]
-                    z2 = seg.coords["Z"]
-
-                    extend((x1, y1, z1))
-                    extend((x2, y2, z2))
-
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-                else:
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-        return vertices 
 class RendererOpenGL(Renderer):
     def __init__(self, verbose = False):
         Renderer.__init__(self, verbose)
@@ -530,14 +460,15 @@ class RendererOpenGL(Renderer):
             return
 
         # Parse the file
-        parser = GcodeParser()
+        self.logInfo("Parsing started")
+        parser = GcodeParser(self.verbose)
         self.gcode_model = parser.parseFile(gcodeFile)
-
+        self.logInfo("Parsing completed")
         if self.gcode_model.syncOffset > 0:
             self.sync_offset = self.gcode_model.syncOffset
 
         self.base_vertices = self._getVertices()
-
+        self.logInfo("Rendering started")
         self._clearAll()
         self._setLight()
         self._prepareDisplayList()        
@@ -556,7 +487,7 @@ class RendererOpenGL(Renderer):
             self._clearAll()
             self._setLight()
             self._renderDisplayList()
-            
+        self.logInfo("Rendering complete")
 
 
     def clear(self):
@@ -803,75 +734,5 @@ class RendererOpenGL(Renderer):
         glLight(GL_LIGHT0, GL_POSITION,  (0, 1, 1, 0))
 
     def _getVertices(self):
-        vertices = []
-        append = vertices.append
-        # if outside of for loop for performance
-        if self.gcode_model.printMode == 'mirror':
-            
-            x1 = 0
-            y1 = 0
-            z1 = 0
-       
-            for seg in self.gcode_model.segments:
-                if seg.style is "extrude":
-                    x2 = seg.coords["X"]
-                    y2 = seg.coords["Y"]
-                    z2 = seg.coords["Z"]
+        return self.gcode_model.segments
 
-                    append((x1, y1, z1))
-                    append((x2, y2, z2))
-                    append((self.bed_width - x1, y1, z1))
-                    append((self.bed_width - x2, y2, z2))
-
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-                else:
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-        elif self.gcode_model.printMode == 'sync':
-            x1 = 0
-            y1 = 0
-            z1 = 0
-       
-            for seg in self.gcode_model.segments:
-                if seg.style is "extrude":
-                    x2 = seg.coords["X"]
-                    y2 = seg.coords["Y"]
-                    z2 = seg.coords["Z"]
-
-                    append((x1, y1, z1))
-                    append((x2, y2, z2))
-                    append((self.sync_offset + x1, y1, z1))
-                    append((self.sync_offset + x2, y2, z2))
-
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-                else:
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-        else:
-            x1 = 0
-            y1 = 0
-            z1 = 0    
-
-            for seg in self.gcode_model.segments:
-                if seg.style is "extrude":
-                    x2 = seg.coords["X"]
-                    y2 = seg.coords["Y"]
-                    z2 = seg.coords["Z"]
-
-                    append((x1, y1, z1))
-                    append((x2, y2, z2))
-
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-                else:
-                    x1 = seg.coords["X"]
-                    y1 = seg.coords["Y"]
-                    z1 = seg.coords["Z"]
-        return vertices 

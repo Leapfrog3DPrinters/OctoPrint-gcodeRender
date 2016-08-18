@@ -129,7 +129,7 @@ class RendererOpenGLES(Renderer):
             return
 
         # Parse the file
-        parser = GcodeParser()
+        parser = GcodeParser(verbose = self.verbose)
         self.gcode_model = parser.parseFile(gcodeFile)
 
         if self.gcode_model.syncOffset > 0:
@@ -292,7 +292,7 @@ class RendererOpenGLES(Renderer):
         
 
     def _prepareDisplayList(self):
-        
+        self.logInfo("Load vertices")
         bedvertices = (   0, 0, 0,
                             0, self.bed_depth, 0,
                             self.bed_width, self.bed_depth, 0,
@@ -303,7 +303,7 @@ class RendererOpenGLES(Renderer):
         
         N = len(self.base_vertices)
         cvertices = eglfloats(self.base_vertices)
-        
+        self.logInfo("Vertices loaded")
         # Draw part
         opengles.glUniform4f(self.color_handle, eglfloat(self.part_color[0]), eglfloat(self.part_color[1]), eglfloat(self.part_color[2]), eglfloat(1.0))
         self.logInfo("Coloring: %s" % hex(opengles.glGetError()))
@@ -378,10 +378,13 @@ class RendererOpenGLES(Renderer):
     def _setViewportAndPerspective(self):
         # Set viewport
         opengles.glViewport(0, 0, self.width, self.height)
+        self.logInfo("Set viewport %s" % hex(opengles.glGetError()))
 
     def _setLighting(self):
         opengles.glEnable(GL_DEPTH_TEST)
+        self.logInfo("Enable depth test %s" % hex(opengles.glGetError()))
         opengles.glClearColor(eglfloat(1.), eglfloat(1.), eglfloat(1.), eglfloat(1.))
+        self.logInfo("Set color %s" % hex(opengles.glGetError()))
 
     def _getVertices(self):
         return self.gcode_model.segments

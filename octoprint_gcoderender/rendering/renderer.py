@@ -632,8 +632,8 @@ class RendererOpenGL(Renderer):
         glLineWidth(1)
         glColor( self.part_color )      
         glBegin(GL_LINES)
-        for vertex in self.base_vertices:
-            glVertex(vertex)     
+        for i in xrange(0, len(self.base_vertices), 3):
+            glVertex((self.base_vertices[i], self.base_vertices[i+1], self.base_vertices[i+2]))     
 
         glEnd()
         

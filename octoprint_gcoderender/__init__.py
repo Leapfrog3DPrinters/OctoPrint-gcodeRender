@@ -39,10 +39,10 @@ if __name__ == "__main__":
     # Find file paths
     scriptPath = os.path.realpath(__file__)
     scriptDir = os.path.dirname(scriptPath)
-    gCodePath = os.path.join(scriptDir, "sample/naim.gcode")
+    gCodePath = os.path.join(scriptDir, "sample/leapfrog.gcode")
 
     if sys.platform == "win32":
-        imagePath = os.path.join(scriptDir, "images/naim.bmp")
+        imagePath = os.path.join(scriptDir, "images/leapfrog.bmp")
         render = RendererOpenGL(verbose= True)
     elif sys.platform == "darwin":
         imagePath = os.path.join(scriptDir, "images/leapfrog.png")

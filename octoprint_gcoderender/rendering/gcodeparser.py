@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-import math, time
-import numpy as np
+import math, time, array
 
 X = 0
 Y = 1
@@ -171,12 +170,12 @@ class GcodeModel:
         self.offset = (0.0, 0.0, 0.0, 0.0)
         # if true, args for move (G1) are given relatively (default: absolute)
         self.isRelative = False
-        self.segments = np.zeros((n, 3))
-        self.segmentidx = 0
+        self.segments = array.array('f')
         self.bbox = None
         self.printMode = 'normal'
         self.syncOffset = -1
         self.verbose = verbose
+        self.appendsegment = self.segments.extend
     
     def do_G1(self, args):
         # G0/G1: Rapid/Controlled move
@@ -214,11 +213,15 @@ class GcodeModel:
                 self.bbox.extend(absolute)
             else:
                 self.bbox = BBox(absolute)
+            
+            self.appendsegment((x + self.offset[X], y + self.offset[Y], z + self.offset[Z], self.relative[X], self.relative[Y], self.relative[Z]))
 
-            self.segments[self.segmentidx] = (x + self.offset[X],y + self.offset[Y],z + self.offset[Z])
-            self.segments[self.segmentidx+1] = (self.relative[X], self.relative[Y], self.relative[Z])
-
-            self.segmentidx+=2
+            #self.appendsegment(x + self.offset[X])
+            #self.appendsegment(y + self.offset[Y])
+            #self.appendsegment(z + self.offset[Z])
+            #self.appendsegment(self.relative[X])
+            #self.appendsegment(self.relative[Y])
+            #self.appendsegment(self.relative[Z])
         else:
             style = GcodeParser.FLY
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+__author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 
 import math, time, array, ctypes
 
@@ -25,7 +25,7 @@ class GcodeParser:
         # read the gcode file
         t0 = time.clock()
 
-        #TODO: Findout if it's worth it to open the file twice
+        #TODO: Findout if it's worth it to open the file twice. It's here to estimate the vertex buffer size
         with open(path, 'r') as f:
             num_lines = sum(1 for line in f)
 
@@ -171,7 +171,8 @@ class GcodeModel:
         # if true, args for move (G1) are given relatively (default: absolute)
         self.isRelative = False
         #self.segments = array.array('f')
-        self.segments = (ctypes.c_float*(n*6))()
+        #TODO: Rename to vertices?
+        self.segments = (ctypes.c_float*(n*6))() # Works with a ctype to prevent casting a large number of floats afterwards
         self.segmentidx = 0
         self.bbox = None
         self.printMode = 'normal'
@@ -217,6 +218,7 @@ class GcodeModel:
                 self.bbox = BBox(absolute)
             
             #self.appendsegment((x + self.offset[X], y + self.offset[Y], z + self.offset[Z], self.relative[X], self.relative[Y], self.relative[Z]))
+            #TODO: Findout if there's a faster assignment method for ctypes
             i = self.segmentidx
             self.segments[i] =  ctypes.c_float(x + self.offset[X])
             self.segments[i+1] = ctypes.c_float(y + self.offset[Y])
@@ -274,6 +276,8 @@ class GcodeModel:
         self.relative = (x,y,z,e)     
 
     def setPrintMode(self, args):
+        # TODO: Make sure vertices are added twice if sync/mirror mode is enabled. 
+        # Was previously a responsibility of the renderer, but this has been removed
         if 'S' in args:
             if args['S'] == 0 or args['S'] == 1:
                 self.printMode = 'normal'

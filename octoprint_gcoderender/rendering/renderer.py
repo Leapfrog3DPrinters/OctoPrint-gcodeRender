@@ -1,3 +1,5 @@
+__author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
+
 import sys
 
 from math import *
@@ -9,7 +11,7 @@ if sys.platform == "win32" or sys.platform == "darwin":
     from pygame.locals import *
 else:
     from pyopengles import *
-    # TODO: Define these inside pyopendles
+    # TODO: Define these inside pyopengles
     GL_VERTEX_ARRAY = 0x8074
 
 from gcodeparser import *
@@ -20,6 +22,7 @@ from vector3 import *
 from PIL import Image
 from datetime import datetime
 
+# Default settings for the renderer
 DEFAULT_WIDTH = 600
 DEFAULT_HEIGHT = 1024
 DEFAULT_BED_WIDTH = 365
@@ -34,7 +37,9 @@ DEFAULT_CAMERA_ROTATION=  (radians(45), radians(0), radians(0))
 DEFAULT_CAMERA_ROTATION_SPEED = radians(90.0)
 DEFAULT_CAMERA_DISTANCE = (-100., -100., 75.)
 
+# Abstract of the renderer class, allow interoperability between linux and win32
 #TODO: implement shared logic of win/linux
+#TODO: Make a blueprint that makes more sense, functionality should better match to function names for both OpenGL and OpenGLES
 class Renderer:
     def __init__(self, verbose = False):
         self.verbose = verbose
@@ -54,6 +59,7 @@ class Renderer:
         if self.verbose:
             print "{time} {msg}".format(time=datetime.now(), msg=message)
 
+# To be used on raspberry pi
 class RendererOpenGLES(Renderer):
     def __init__(self, verbose = False):
         Renderer.__init__(self, verbose)
@@ -86,6 +92,10 @@ class RendererOpenGLES(Renderer):
         self.camera_handle = None
                 
     def initialize(self, bedWidth, bedDepth, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT, showWindow = False,  backgroundColor = None, partColor = None, bedColor = None, cameraPosition = None, cameraRotation = None):
+        """
+        Initializes and configures the renderer
+        """
+
         if self.is_initialized:
             return
 
@@ -119,32 +129,52 @@ class RendererOpenGLES(Renderer):
         self.is_initialized = True
 
     def close(self):
+        """
+        Closes the rendering context. Only call when you are done rendering all images
+        """
         if not self.is_initialized or not self.is_window_open:
             return
         
         self.ctx.close()
 
     def renderModel(self, gcodeFile, bringCameraInPosition = False):
+        """
+        Renders a gcode file into a preview image.
+
+        bringCameraInPosition: Automatically calculate camera position for a nice angle
+        """ 
         if not self.is_initialized or not self.is_window_open:
             return
 
-        # Parse the file
+        # Read the gcode file and get all coordinates
         parser = GcodeParser(verbose = self.verbose)
         self.gcode_model = parser.parseFile(gcodeFile)
 
+        # Deprecated: Sync mode. Distance between parts left and right
         if self.gcode_model.syncOffset > 0:
             self.sync_offset = self.gcode_model.syncOffset
         
+        # Get all vertices that define the lines to be drawn from the parser
         self.base_vertices = self._getVertices()
 
+        # Start with a clean slate and draw the bed
         self._clearAll()
+
+        # Configure lights
         self._setLight()
 
+        
         if bringCameraInPosition:
+            # Calculate a nice position for the camera and move it there
             self._bringCameraInPosition()
         else:
+            # Just move the camera to the predefined (fixed) position
             self._updateCamera()
+
+        # Prepare the lines that should be drawn from the vertices
         self._prepareDisplayList()        
+        
+        # Draw the lines to the framebuffer
         self._renderDisplayList()
 
         if self.is_window_open:
@@ -152,6 +182,9 @@ class RendererOpenGLES(Renderer):
 
 
     def clear(self):
+        """
+        Clears the frame and draws the bed
+        """
         if not self.is_initialized or not  self.is_window_open:
             return
 
@@ -159,6 +192,10 @@ class RendererOpenGLES(Renderer):
         self._renderBed()
     
     def save(self, imageFile):
+        """
+        Save the framebuffer to a file
+        """
+
         if not self.is_initialized or not self.is_window_open:
             return
 
@@ -175,6 +212,10 @@ class RendererOpenGLES(Renderer):
         img.transpose(Image.FLIP_TOP_BOTTOM).save(imageFile)
 
     def _initFrameBuffer(self):
+        """
+        Create a frame buffer object to draw the lines to
+        """
+
         self.fbo = ctypes.c_uint()
         self.color_buf = ctypes.c_uint()
         self.depth_buf = ctypes.c_uint()
@@ -183,27 +224,36 @@ class RendererOpenGLES(Renderer):
         opengles.glGenFramebuffers(1,self.fbo)
         opengles.glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         
-        #Colorbuffer
+        # Colorbuffer
         opengles.glGenRenderbuffers(1,self.color_buf)
         opengles.glBindRenderbuffer(GL_RENDERBUFFER, self.color_buf)
         opengles.glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, self.width, self.height)
         opengles.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, self.color_buf)
 
-        #Depthbuffer
+        # Depthbuffer
         opengles.glGenRenderbuffers(1, self.depth_buf)
         opengles.glBindRenderbuffer(GL_RENDERBUFFER, self.depth_buf)
         opengles.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, self.width, self.height)
         opengles.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth_buf)
 
     def _deinitFrameBuffer(self):
+       """
+       De-initializes the framebuffer object
+       """
        opengles.glDeleteRenderbuffersEXT(1, self.color_buffer)
        opengles.glDeleteRenderbuffersEXT(1, self.depth_buffer)
        opengles.glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0)
        opengles.glDeleteFramebuffersEXT(1, self.fbo)
 
     def _bringCameraInPosition(self):
+        """
+        Calculates the best position for the camera to bring the entire part into the viewport
+        """
 
+        # Check if the gcode model knows the boundaries of the part
         if self.gcode_model.bbox:
+            # Find the center of the object and make an estimation of the size of it (the / 75 was found by trial and error to give a nice zoom factor)
+            # Take more distance for sync/mirror parts 
             if self.gcode_model.printMode == 'sync':
                 object_center = Vector3(self.gcode_model.bbox.cx() + self.sync_offset / 2, self.gcode_model.bbox.cy(), self.gcode_model.bbox.cz())
                 scale = max(self.gcode_model.bbox.xmax+self.sync_offset - self.gcode_model.bbox.xmin, self.gcode_model.bbox.dy(), self.gcode_model.bbox.dz())  / 75
@@ -217,23 +267,30 @@ class RendererOpenGLES(Renderer):
             object_center = Vector3(self.bed_width/2, self.bed_depth/2, 0)
             scale = 1
         
+        # Calculate the camera distance
         cam_dist = Vector3(self.camera_distance) * scale
         self.camera_position = (object_center + cam_dist).as_tuple()
         up = (0, 0, 1)
 
+        # Calculate the lookat and projection matrices
         lookat = Matrix44.lookat(object_center, up, self.camera_position)
         projection = Matrix44.perspective_projection_fov(radians(45), float(self.width)/float(self.height), 0.1, 10000.0)
 
+        # Calculate the camera matrix. This matrix translates and rotates all vertices, as such that it looks like the camera is brought in position
         self.camera_matrix = projection * lookat
 
         ccam = eglfloats(self.camera_matrix.to_opengl())
 
+        # Upload the camera matrix to OpenGLES
         opengles.glUniformMatrix4fv(self.camera_handle, 1, GL_FALSE, ccam)
 
         # Light must be transformed as well
         self._setLight()
 
     def _openWindow(self):
+        """
+        Open a window for the renderer.
+        """
         if self.is_window_open:
             return
         
@@ -242,9 +299,14 @@ class RendererOpenGLES(Renderer):
         self.is_window_open = True
 
     def _openWindowPi(self):
+        """
+        Opens a (background) window on the Pi to be rendered to. 
+        """
 
+        # Get a OpenGL context from EGL. The OpenGL framebuffers are bound to this context
         self.ctx = EGL(depth_size = 8)
 
+        # Define the shaders that draw the vertices. Camera and color are kept contant.
         vertex_shader = """
             uniform mat4 uCamera; 
             attribute vec4 aPosition;
@@ -266,23 +328,34 @@ class RendererOpenGLES(Renderer):
 
         binding = ((5, 'aPosition'),)
         
+        # Send the shaders to the context
         self.program = self.ctx.get_program(vertex_shader, fragment_shader, binding, False)
         self.logInfo("Program: %s" % self.program)
+
+        # Get pointers to the shader parameters
         self.position_handle = opengles.glGetAttribLocation(self.program, "aPosition")
         self.logInfo("Position handle: %s" % self.position_handle)
+
         self.color_handle = opengles.glGetUniformLocation(self.program, "uColor")
         self.logInfo("Color handle: %s" % self.color_handle)
+
         self.camera_handle = opengles.glGetUniformLocation(self.program, "uCamera")
         self.logInfo("Camera handle: %s" % self.camera_handle)
 
+        # Activate the program
         opengles.glUseProgram(self.program)
         self.logInfo("Use program: %s" % hex(opengles.glGetError()))
 
     def _clearAll(self):
+        """
+        Render a blank screen
+        """
         opengles.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     def _renderDisplayList(self):
-        
+        """
+        Empty the buffers and if a window is open, swap the buffers
+        """
         # Update the window
         opengles.glFlush()
         opengles.glFinish()
@@ -292,6 +365,12 @@ class RendererOpenGLES(Renderer):
         
 
     def _prepareDisplayList(self):
+        """
+        Does the main rendering of the bed and the part
+        """
+
+        # Define the vertices that make up the print bed. The vertices define two triangles that make up a square 
+        # (squares are not directly supported in OpenGLES)
         self.logInfo("Load vertices")
         bedvertices = (   0, 0, 0,
                             0, self.bed_depth, 0,
@@ -301,65 +380,98 @@ class RendererOpenGLES(Renderer):
                             0, 0, 0)
         cbedvertices = eglfloats(bedvertices)
         
+        # Get the part vertices 
+        # cvertices is a one-dimensional array: [x1a y1a z1a x1b y1b z1b x2a y2a ... ], where the number refers to the line number and a/b to start/end of the line.
+        # Thus each line consists out of 6 floats
         N = len(self.base_vertices)
         cvertices = self.base_vertices
         self.logInfo("Vertices loaded")
-        # Draw part
+
+        # Set the shader's color parameter to the part color 
         opengles.glUniform4f(self.color_handle, eglfloat(self.part_color[0]), eglfloat(self.part_color[1]), eglfloat(self.part_color[2]), eglfloat(1.0))
         self.logInfo("Coloring: %s" % hex(opengles.glGetError()))
         self.logInfo("Color: {0} {1} {2}".format(*self.part_color))
+
+        # Enable VERTEX_ARRAY buffer
         opengles.glEnableClientState(GL_VERTEX_ARRAY)
         self.logInfo("Client state")
+
+        # Create a Vertex Buffer Object
         vbo = eglint()
         opengles.glGenBuffers(1,ctypes.byref(vbo))
         self.logInfo("VBO: %s" % vbo.value)
+
         opengles.glBindBuffer(GL_ARRAY_BUFFER, vbo)
         self.logInfo("Bind buffer: %s" % hex(opengles.glGetError()))
         self.logInfo("N vertices: %s" % N)
         self.logInfo("Buffer size: %s" % ctypes.sizeof(cvertices))
+
+        # Fill the buffer with the vertices
+        # TODO: This loads the entire vertice buffer at once to the GPU mem. (May be 100s of mbs), may be try and load this sequentially in chuncks of x mb
         opengles.glBufferData(GL_ARRAY_BUFFER, ctypes.sizeof(cvertices), ctypes.byref(cvertices), GL_STATIC_DRAW)
         self.logInfo("Buffer filled %s" % hex(opengles.glGetError()))
+
+        # No need for these anymore, due to the use of a VBO
         #opengles.glEnableVertexAttribArray(self.position_handle)
-        self.logInfo("Enable part vertex: %s" % hex(opengles.glGetError()))
+        #self.logInfo("Enable part vertex: %s" % hex(opengles.glGetError()))
+
         opengles.glBindBuffer(GL_ARRAY_BUFFER, vbo)
         self.logInfo("Bind buffer: %s" % hex(opengles.glGetError()))
+
+        # Now, load the VBO into the shader's position parameter
         opengles.glEnableVertexAttribArray(self.position_handle)
-        opengles.glVertexAttribPointer(self.position_handle, 3, GL_FLOAT, GL_FALSE, 0, 0)
+        opengles.glVertexAttribPointer(self.position_handle, 3, GL_FLOAT, GL_FALSE, 0, 0) # The array consists of 3 items per vertex (x, y, z)
         #opengles.glEnableVertexAttribArray(self.position_handle)
         self.logInfo("Set part vertex: %s" % hex(opengles.glGetError()))
         opengles.glBindBuffer(GL_ARRAY_BUFFER, vbo)
+
+        # The position parameter is set, no start drawing. Because of GL_LINES, 2 vertices are expected per line = cvertices->a and b
         opengles.glDrawArrays( GL_LINES , 0, N/3 )
-        self.logInfo("Draw part tri %s" % hex(opengles.glGetError()))
+        self.logInfo("Draw part %s" % hex(opengles.glGetError()))
+
+        # Remove the binding to the VBO
         opengles.glDisableVertexAttribArray(self.position_handle)
         self.logInfo("Disable vertex array %s" % hex(opengles.glGetError()))
         opengles.glBindBuffer(GL_ARRAY_BUFFER, 0)
         self.logInfo("Disable buffer %s" % hex(opengles.glGetError()))
         
-        # Draw bed
+        # Draw the bed in a similar way as the part, but without a VBO
         opengles.glUniform4f(self.color_handle, eglfloat(self.bed_color[0]), eglfloat(self.bed_color[1]), eglfloat(self.bed_color[2]), eglfloat(1.0))
         self.logInfo("Bed color %s" % hex(opengles.glGetError()))
-        opengles.glVertexAttribPointer(self.position_handle, 3, GL_FLOAT, GL_FALSE, 0, cbedvertices)
+
+        opengles.glVertexAttribPointer(self.position_handle, 3, GL_FLOAT, GL_FALSE, 0, cbedvertices) # 3 floats per vertex (x, y, z)
         self.logInfo("Bed vertex array %s" % hex(opengles.glGetError()))
+
         opengles.glEnableVertexAttribArray(self.position_handle)
         self.logInfo("Enable array %s" % hex(opengles.glGetError()))
-        opengles.glDrawArrays ( GL_TRIANGLES, 0, 6 )
+
+        opengles.glDrawArrays ( GL_TRIANGLES, 0, 6 ) # 6 vertices make up two triangles, which make up 1 square
         self.logInfo("Draw bed array %s" % hex(opengles.glGetError()))
+
         opengles.glDisableVertexAttribArray(self.position_handle)
         self.logInfo("Disable array %s" % hex(opengles.glGetError()))
+
         opengles.glDeleteBuffers(1, ctypes.byref(vbo))
         self.logInfo("Delete buffer %s" % hex(opengles.glGetError()))
 
     def _updateCamera(self):
-        
+        """
+        Sets the camera matrix to the given position
+        """
+
         self.camera_matrix = Matrix44()
 
+        # Lookat the center of the bed
         lookat = Matrix44.lookat((float(self.bed_width)/2, float(self.bed_depth)/2, 0), (0, 0, 1), (float(self.bed_width)/2, -100, 200))
+
+        # Define the perspective of the camera
         projection = Matrix44.perspective_projection_fov(radians(90), float(self.width)/float(self.height), 0.1, 10000.0)
 
+        # Calculate the camera matrix
         self.camera_matrix = projection * lookat
 
+        # Upload the camera matrix to the shader
         ccam = eglfloats(self.camera_matrix.to_opengl())
-
         opengles.glUniformMatrix4fv(self.camera_handle, 1, GL_FALSE, ccam)
 
         # Light must be transformed as well
@@ -367,6 +479,7 @@ class RendererOpenGLES(Renderer):
 
     
     def _setLight(self):
+        #TODO: Experiment more with lighting. For now, it looks like materials are not supported for GL_LINES (makes sense)
         light_ambient =  0.0, 0.0, 0.0, 1.0 
         light_diffuse =  1.0, 1.0, 1.0, 1.0 
         light_specular =  1.0, 1.0, 1.0, 1.0 
@@ -376,17 +489,25 @@ class RendererOpenGLES(Renderer):
         mat_shininess =  50.0 
 
     def _setViewportAndPerspective(self):
-        # Set viewport
+        """
+        Sets the width and height of the viewport
+        """
         opengles.glViewport(0, 0, self.width, self.height)
         self.logInfo("Set viewport %s" % hex(opengles.glGetError()))
 
     def _setLighting(self):
+        """
+        Sets the clear color and enables depth testing
+        """
         opengles.glEnable(GL_DEPTH_TEST)
         self.logInfo("Enable depth test %s" % hex(opengles.glGetError()))
         opengles.glClearColor(eglfloat(1.), eglfloat(1.), eglfloat(1.), eglfloat(1.))
         self.logInfo("Set color %s" % hex(opengles.glGetError()))
 
     def _getVertices(self):
+        """
+        Gets the vertices that make up the gcode model
+        """
         return self.gcode_model.segments
 
 class RendererOpenGL(Renderer):

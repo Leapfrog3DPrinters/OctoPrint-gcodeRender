@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division
+__author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 
 import os, sys, imp
 

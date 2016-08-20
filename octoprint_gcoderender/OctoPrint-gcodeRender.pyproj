@@ -45,10 +45,6 @@
     <Compile Include="rendering\pyopengles\pyopengles.py" />
     <Compile Include="rendering\pyopengles\pyopengles_demo.py" />
     <Compile Include="rendering\pyopengles\__init__.py" />
-    <Compile Include="rendering\rendererlinux.py.bak" />
-    <Compile Include="rendering\rendererwindows.py.bak">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="rendering\util.py" />
     <Compile Include="rendering\vector3.py" />
     <Compile Include="rendering\__init__.py">

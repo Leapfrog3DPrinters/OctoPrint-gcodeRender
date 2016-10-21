@@ -248,5 +248,17 @@ ModelManifest.xml
 *.pyc
 /OctoPrint_gcodeRender.egg-info
 *.bmp
+/octoprint_gcoderender/sample/naim.gcode
 
+*.pyc
+*.swp
+.idea
+*.iml
+dist
+*.egg*
+.DS_Store
+*.zip
+*.codekit
+*.sass-cache
+*.pyproj
 *.egg

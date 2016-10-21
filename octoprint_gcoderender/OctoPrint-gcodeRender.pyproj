@@ -12,7 +12,7 @@
     <OutputPath>.</OutputPath>
     <Name>OctoPrint-gcodeRender</Name>
     <RootNamespace>OctoPrint-gcodeRender</RootNamespace>
-    <InterpreterId>{dfc351a4-87a6-41b7-aa31-1cec15d85e8e}</InterpreterId>
+    <InterpreterId>{2af0f10d-7135-4994-9156-5d01c9c11b7e}</InterpreterId>
     <InterpreterVersion>2.7</InterpreterVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -45,10 +45,6 @@
     <Compile Include="rendering\pyopengles\pyopengles.py" />
     <Compile Include="rendering\pyopengles\pyopengles_demo.py" />
     <Compile Include="rendering\pyopengles\__init__.py" />
-    <Compile Include="rendering\rendererlinux.py.bak" />
-    <Compile Include="rendering\rendererwindows.py.bak">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="rendering\util.py" />
     <Compile Include="rendering\vector3.py" />
     <Compile Include="rendering\__init__.py">
@@ -83,6 +79,9 @@
     <Content Include="rendering\simple.py">
       <SubType>Code</SubType>
     </Content>
+    <Content Include="sample\naim.gcode" />
+    <Content Include="sample\spiral.gcode" />
+    <Content Include="sample\terminator.gcode" />
   </ItemGroup>
   <ItemGroup>
     <Interpreter Include="..\..\OctoPrint\venv\">

@@ -248,3 +248,5 @@ ModelManifest.xml
 *.pyc
 /OctoPrint_gcodeRender.egg-info
 *.bmp
+
+*.egg

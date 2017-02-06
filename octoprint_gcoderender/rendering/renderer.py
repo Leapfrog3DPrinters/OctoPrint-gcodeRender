@@ -7,8 +7,6 @@ from math import *
 if sys.platform == "win32" or sys.platform == "darwin":
     from OpenGL.GL import *
     from OpenGL.GLU import *
-    import pygame
-    from pygame.locals import *
 else:
     from pyopengles import *
     # TODO: Define these inside pyopengles
@@ -512,6 +510,11 @@ class RendererOpenGLES(Renderer):
 
 class RendererOpenGL(Renderer):
     def __init__(self, verbose = False):
+        global pygame
+        global pygamelocals
+        import pygame
+        import pygame.locals as pygamelocals
+        
         Renderer.__init__(self, verbose)
         self.show_window = False
         self.is_initialized = False
@@ -541,6 +544,8 @@ class RendererOpenGL(Renderer):
     def initialize(self, bedWidth, bedDepth, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT, showWindow = False,  backgroundColor = None, partColor = None, bedColor = None, cameraPosition = None, cameraRotation = None):
         if self.is_initialized:
             return
+
+        
 
         self.bed_width = bedWidth
         self.bed_depth = bedDepth
@@ -726,13 +731,13 @@ class RendererOpenGL(Renderer):
     def _openWindow(self):
         if self.is_window_open:
             return
-                
+               
         pygame.init()
 
         if not self.show_window:
             pygame.display.iconify()
 
-        pygame.display.set_mode((self.width, self.height), HWSURFACE|OPENGL|DOUBLEBUF)
+        pygame.display.set_mode((self.width, self.height), pygamelocals.HWSURFACE|pygamelocals.OPENGL|pygamelocals.DOUBLEBUF)
 
         self.is_window_open = True
 

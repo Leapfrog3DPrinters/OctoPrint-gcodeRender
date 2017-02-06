@@ -1,12 +1,15 @@
 __author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 
-import sys
+import sys, os
 
 from math import *
 
 if sys.platform == "win32" or sys.platform == "darwin":
+    
+    os.environ["PYSDL2_DLL_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sdl')
     from OpenGL.GL import *
     from OpenGL.GLU import *
+    import sdl2
 else:
     from pyopengles import *
     # TODO: Define these inside pyopengles
@@ -510,11 +513,6 @@ class RendererOpenGLES(Renderer):
 
 class RendererOpenGL(Renderer):
     def __init__(self, verbose = False):
-        global pygame
-        global pygamelocals
-        import pygame
-        import pygame.locals as pygamelocals
-        
         Renderer.__init__(self, verbose)
         self.show_window = False
         self.is_initialized = False
@@ -537,15 +535,12 @@ class RendererOpenGL(Renderer):
         self.movement_direction = Vector3()
         self.movement_speed = DEFAULT_CAMERA_MOVEMENT_SPEED
         self.camera_distance = DEFAULT_CAMERA_DISTANCE # Distance from object
-        self.clock = pygame.time.Clock()
         self.ctx = None
         self.program = None
                 
     def initialize(self, bedWidth, bedDepth, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT, showWindow = False,  backgroundColor = None, partColor = None, bedColor = None, cameraPosition = None, cameraRotation = None):
         if self.is_initialized:
             return
-
-        
 
         self.bed_width = bedWidth
         self.bed_depth = bedDepth
@@ -582,7 +577,9 @@ class RendererOpenGL(Renderer):
         if not self.is_initialized or not self.is_window_open:
             return
         
-        pygame.display.quit()
+        sdl2.SDL_GL_DeleteContext(self.context)
+        sdl2.SDL_DestroyWindow(self.window)
+        sdl2.SDL_Quit()
 
     def renderModel(self, gcodeFile, bringCameraInPosition = False):
         if not self.is_initialized or not self.is_window_open:
@@ -607,7 +604,6 @@ class RendererOpenGL(Renderer):
 
         if self.show_window:
             while True:
-                self._handleEvents()
                 self._clearAll()
                 self._setLight()
                 self._renderDisplayList()
@@ -695,49 +691,26 @@ class RendererOpenGL(Renderer):
                     object_center[0], object_center[1], object_center[2], 
                     up[0], up[1], up[2])
 
-    def _handleEvents(self):
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                return
-            if event.type == KEYUP and event.key == K_ESCAPE:
-                return
-
-        pressed = pygame.key.get_pressed()
-
-        # Reset rotation and movement directions
-        self.rotation_direction.set(0.0, 0.0, 0.0)
-        self.movement_direction.set(0.0, 0.0, 0.0)
-
-        # Modify direction vectors for key presses
-        if pressed[K_LEFT]:
-            self.rotation_direction.y = +1.0
-        elif pressed[K_RIGHT]:
-            self.rotation_direction.y = -1.0
-        if pressed[K_UP]:
-            self.rotation_direction.x = +1.0
-        elif pressed[K_DOWN]:
-            self.rotation_direction.x = -1.0
-        if pressed[K_z]:
-            self.rotation_direction.z = +1.0
-        elif pressed[K_x]:
-            self.rotation_direction.z = -1.0
-        if pressed[K_q]:
-            self.movement_direction.z = -1.0
-        elif pressed[K_a]:
-            self.movement_direction.z = +1.0
-        
-        self._updateCameraForEvents()
-
     def _openWindow(self):
         if self.is_window_open:
             return
                
-        pygame.init()
+        sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO)
 
-        if not self.show_window:
-            pygame.display.iconify()
+        self.window = sdl2.SDL_CreateWindow(b"OpenGL demo",
 
-        pygame.display.set_mode((self.width, self.height), pygamelocals.HWSURFACE|pygamelocals.OPENGL|pygamelocals.DOUBLEBUF)
+                                   sdl2.SDL_WINDOWPOS_UNDEFINED,
+
+                                   sdl2.SDL_WINDOWPOS_UNDEFINED, self.width, self.height,
+
+                                   sdl2.SDL_WINDOW_OPENGL|sdl2.SDL_WINDOW_HIDDEN)
+
+
+        #if not self.show_window:
+            #sdl2.Window.minimize()
+
+
+        self.context = sdl2.SDL_GL_CreateContext(self.window)
 
         self.is_window_open = True
 
@@ -748,7 +721,7 @@ class RendererOpenGL(Renderer):
         glCallList(self.display_list)
         
         # Update the window
-        pygame.display.flip()
+        sdl2.SDL_GL_SwapWindow(self.window)
         
 
     def _prepareDisplayList(self):
@@ -794,27 +767,6 @@ class RendererOpenGL(Renderer):
         
         # Light must be transformed as well
         self._setLight()
-
-    def _updateCameraForEvents(self):
-        time_passed = self.clock.tick()
-        time_passed_seconds = time_passed / 1000.
-
-        if self.rotation_direction.x <> 0 or self.rotation_direction.y <> 0 or self.rotation_direction.z <> 0:
-            # Calculate rotation matrix and multiply by camera matrix
-            rotation = self.rotation_direction * self.rotation_speed * time_passed_seconds
-            self.camera_rotation += rotation
-        
-            self.rotation_matrix = Matrix44.xyz_rotation(*rotation)
-            self.camera_matrix *= self.rotation_matrix
-
-            # Calcluate movment and add it to camera matrix translate
-            heading = Vector3(self.camera_matrix.forward)
-            movement = heading * self.movement_direction.z * self.movement_speed * time_passed_seconds
-            self.camera_position += movement
-            self.camera_matrix.translate += movement 
-
-            # Upload camera matrix
-            glLoadMatrixd(self.camera_matrix.get_inverse().to_opengl())
 
     def _setLight(self):
         light_ambient =  0.0, 0.0, 0.0, 1.0 
@@ -864,4 +816,3 @@ class RendererOpenGL(Renderer):
 
     def _getVertices(self):
         return self.gcode_model.segments
-

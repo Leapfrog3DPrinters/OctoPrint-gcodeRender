@@ -59,22 +59,32 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._previews_query = Query() # underscore for blueprintapi compatability
         self.dbLock.release()
     
-    def _updateAllPreviews(self):
+    def _updateAllPreviews(self, subFolder = None):
         """
         Reads the entire preview database, checks if there are any outdated previews (last modified of preview
         is before last modified of gcode file) and updates these.
         """ 
-        uploads_folder = self._settings.global_get_basefolder('uploads')
+        current_folder = self._settings.global_get_basefolder('uploads')
 
-        # TODO: Make this recursive
-        for entry in os.listdir(uploads_folder):
-            entry_path = os.path.join(uploads_folder, entry)
+        if subFolder:
+            current_folder = os.path.join(current_folder, subFolder)
+
+        self._logger.debug('Scanning folder {0} for render jobs'.format(current_folder))
+
+        for entry in os.listdir(current_folder):
+            entry_path = os.path.join(current_folder, entry)
+            entry_rel_path = entry
+
+            if subFolder:
+                entry_rel_path = subFolder + '/' + entry
 
             if os.path.isfile(entry_path):
-                file_type = octoprint.filemanager.get_file_type(entry)
+                file_type = octoprint.filemanager.get_file_type(entry_rel_path)
                 if(file_type):
                     if file_type[0] is "machinecode":
-                        self._updatePreview(entry_path, entry)
+                        self._updatePreview(entry_path, entry_rel_path)
+            else:
+                self._updateAllPreviews(entry_rel_path)
    
     def _updatePreview(self, path, filename):
         """
@@ -364,7 +374,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         """
         Creates a filename for the preview. Returns both filename and (full) path
         """
-        name, _ = os.path.splitext(filename)
+
+        # Strip any subfolders and find the basename of the file
+        _, tail = os.path.split(filename)
+        name, _ = os.path.splitext(tail)
 
         images_folder = self._get_image_folder()
         
@@ -372,7 +385,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             modtime = time.clock()
 
         new_filename = "{0}_{1}.{2}".format(name, modtime, self.preview_extension)
-
 
         image_path = os.path.join(images_folder, new_filename)
 

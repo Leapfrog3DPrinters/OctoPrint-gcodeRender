@@ -31,17 +31,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self.renderJobs = Queue.Queue()
 
         # Prepare loks for render queue and database access
-        self.queueLock = threading.Lock()
         self.dbLock = threading.Lock()
 
         self.preview_extension = "png"
-
-        if sys.platform == "win32":
-            self.preview_extension = "bmp"
-
-        # Keep track of which files are (about to be) rendered
-        # Using this array, theres no need to read the full renderJobs queue
-        self.renderJobsWatch = []
 
         # Initialize tinydb
         self._prepareDatabase()
@@ -51,6 +43,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         # Begin watching for render jobs
         self._start_render_thread()
+
+        # Fill the queue with any jobs we may have missed
+        self._updateAllPreviews()
 
     def _prepareDatabase(self):
         self.dbLock.acquire()
@@ -126,9 +121,12 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self.dbLock.release()
 
     def on_event(self, event, payload, *args, **kwargs):
-        # TODO: This is quire rigorous, make it more lean
-        if event == Events.UPDATED_FILES:
-            self._updateAllPreviews()
+        if event == Events.UPLOAD:
+            if "path" in payload:
+                gcodePath = os.path.join(self._settings.global_get_basefolder('uploads'), payload["path"])
+                self.render_gcode(gcodePath, payload["name"])
+            else:
+                self._logger.debug("File uploaded, but no metadata found to create the gcode preview")
 
     def is_blueprint_protected(self):
         return False
@@ -143,12 +141,12 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         Adds a render job to the render queue
         """
         if not os.path.exists(path):
+            self._logger.debug("Could not find file to render: {0}".format(path))
             return
 
         if not modtime:
              modtime = os.path.getmtime(path)
         
-        # First check if the renderqueue doesn't contain a job for the same gcode file
         #TODO: Some error handling; or return a dummy preview
         maxFileSize = self._settings.get_int(["maxPreviewFileSize"])
         if maxFileSize > 0 and os.path.getsize(path) > maxFileSize:
@@ -156,32 +154,23 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             return
 
         # Add the job to the render queue
-        self.queueLock.acquire()
-        if not filename in self.renderJobsWatch:
-            self.renderJobsWatch.append(filename) # TODO: Also remove old render job?
-            self.renderJobs.put({ "path": path, "filename": filename, "modtime": modtime})
-            self._logger.debug("Render job enqueued: %s" % filename)
-        else:
-            self._logger.debug("Already enqueued: %s" % filename)
-        self.queueLock.release()
+        self.renderJobs.put({ "path": path, "filename": filename, "modtime": modtime})
+        self._logger.debug("Render job enqueued: %s" % filename)
         
 
-    @octoprint.plugin.BlueprintPlugin.route("/previewstatus", methods=["GET"])
-    def previewstatus(self):
+    @octoprint.plugin.BlueprintPlugin.route("/previewstatus/<path:filename>", methods=["GET"])
+    def previewstatus(self, filename):
         """
         Allows to check whether a preview is available for a gcode file. 
         Query string arguments:
         filename: The gcode file to get the preview status for
         make: Whether or not to start rendering the preview, if there's no preview ready
 
-        GET /previewstatus?filename=file.gcode&make=true
+        GET /previewstatus/<filename>
         """
 
         #TODO: Add support for other statusses, such as 'rendering failed', 'gcode too big', 'queued for rendering' etc
-
-        filename = request.args.get('filename') 
-        make = request.args.get('make') == 'true'
-
+        
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
@@ -192,12 +181,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             self.dbLock.release()
 
             if not db_entry:
-                if make:
-                    gcodePath = os.path.join(self._settings.global_get_basefolder('uploads'), filename)
-                    self.render_gcode(gcodePath, filename)
-                    response = make_response(jsonify({ 'status': 'rendering'}), 200)
-                else:
-                    response = make_response(jsonify({ 'status': 'notfound'}), 200)
+                response = make_response(jsonify({ 'status': 'notfound'}), 200)
             elif os.path.exists(db_entry["previewPath"]):
                 response = make_response(jsonify({ 'status': 'ready', 'previewUrl' : db_entry["previewUrl"] }), 200)
             else:
@@ -206,7 +190,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         return self._make_no_cache(response)
 
-    @octoprint.plugin.BlueprintPlugin.route("/preview/<previewFilename>", methods=["GET"])
+    @octoprint.plugin.BlueprintPlugin.route("/preview/<path:previewFilename>", methods=["GET"])
     def preview(self, previewFilename):
         """
         Retrieves a preview for a gcode file. Returns 404 if preview was not found
@@ -271,18 +255,13 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self.render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.75, 0.75, 0.75), width = 250, height = 250)
         
         while True:
-            self.queueLock.acquire()
-            if not self.renderJobs.empty():
-                job = self.renderJobs.get()
-                self._logger.debug("Job found: %s" % job['filename'])
-                self.queueLock.release()
-                self._render_gcode_worker(job['path'], job['filename'], job['modtime'])
-                self.queueLock.acquire()
-                self.renderJobsWatch.remove(job['filename'])
-                self.renderJobs.task_done()
-
-            self.queueLock.release()
-            time.sleep(0.5) #TODO: find another way to reduce CPU
+            job = self.renderJobs.get() # Will block until a job becomes available
+            self._logger.debug("Job found: {0}".format(job['filename']))
+            t0 = time.time()
+            self._render_gcode_worker(job['path'], job['filename'], job['modtime'])
+            t1 = time.time()
+            self._logger.info("Rendered preview for {filename} in {t:0.0f} s".format(filename=job['filename'], t=(t1-t0)))
+            self.renderJobs.task_done()
 
     def _render_gcode_worker(self, path, filename, modtime):
         """

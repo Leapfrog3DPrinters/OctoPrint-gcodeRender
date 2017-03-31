@@ -697,17 +697,10 @@ class RendererOpenGL(Renderer):
                
         sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO)
 
-        self.window = sdl2.SDL_CreateWindow(b"OpenGL demo",
-
+        self.window = sdl2.SDL_CreateWindow(b"GcodeRender",
                                    sdl2.SDL_WINDOWPOS_UNDEFINED,
-
                                    sdl2.SDL_WINDOWPOS_UNDEFINED, self.width, self.height,
-
                                    sdl2.SDL_WINDOW_OPENGL|sdl2.SDL_WINDOW_HIDDEN)
-
-
-        #if not self.show_window:
-            #sdl2.Window.minimize()
 
 
         self.context = sdl2.SDL_GL_CreateContext(self.window)
@@ -727,18 +720,10 @@ class RendererOpenGL(Renderer):
     def _prepareDisplayList(self):
         
         # Prepare batch
+
         self.display_list = glGenLists(1)    
         glNewList(self.display_list, GL_COMPILE)
     
-        # Render all vertices
-        glLineWidth(1)
-        glColor( self.part_color )      
-        glBegin(GL_LINES)
-        for i in xrange(0, len(self.base_vertices), 3):
-            glVertex((self.base_vertices[i], self.base_vertices[i+1], self.base_vertices[i+2]))     
-
-        glEnd()
-        
         #Render bed
         glColor( self.bed_color )       
 
@@ -750,6 +735,17 @@ class RendererOpenGL(Renderer):
         glVertex(self.bed_width, 0, 0)
 
         glEnd()
+
+
+        # Render all vertices
+        glLineWidth(6)
+        glColor( self.part_color )      
+        glBegin(GL_LINES)
+        for i in xrange(0, len(self.base_vertices), 3):
+            glVertex((self.base_vertices[i], self.base_vertices[i+1], self.base_vertices[i+2]))     
+
+        glEnd()
+        
 
         # Send batch
         glEndList()

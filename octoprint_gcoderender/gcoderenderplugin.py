@@ -246,10 +246,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         """"
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
-        if sys.platform == "win32" or sys.platform == "darwin":
-            self.render = RendererOpenGL()
-        else:
-            self.render = RendererOpenGLES()
+        self.render = RendererOpenGL()
 
         #TODO: 'Soft-code'. Move these settings to the settings file
         self.render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.75, 0.75, 0.75), width = 250, height = 250)

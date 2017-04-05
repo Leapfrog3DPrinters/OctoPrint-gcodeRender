@@ -42,14 +42,10 @@ if __name__ == "__main__":
     scriptDir = os.path.dirname(scriptPath)
     gCodePath = os.path.join(scriptDir, "sample/leapfrog.gcode")
 
-    if sys.platform == "win32" or sys.platform == "darwin":
-        imagePath = os.path.join(scriptDir, "images/leapfrog.png")
-        render = RendererOpenGL(verbose= True)
-    else:
-        imagePath = os.path.join(scriptDir, "images/leapfrog.png")
-        render = RendererOpenGLES(verbose= True)
+    imagePath = os.path.join(scriptDir, "images/leapfrog.png")
+    render = RendererOpenGL(verbose= True)
 
     # Start rendering the part
-    render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7), showWindow = False)
+    render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7))
     render.renderModel(gCodePath, True)
     render.save(imagePath)

@@ -42,7 +42,7 @@
     <Compile Include="rendering\renderer.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="rendering\pyopengles.py" />
+    <Compile Include="rendering\eglcontext.py" />
     <Compile Include="rendering\util.py" />
     <Compile Include="rendering\vector3.py" />
     <Compile Include="rendering\__init__.py">

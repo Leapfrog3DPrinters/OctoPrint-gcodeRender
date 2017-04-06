@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Find file paths
     scriptPath = os.path.realpath(__file__)
     scriptDir = os.path.dirname(scriptPath)
-    gCodePath = os.path.join(scriptDir, "sample/leapfrog.gcode")
+    gCodePath = os.path.join(scriptDir, "sample/leapfrog_tiny.gcode")
 
     imagePath = os.path.join(scriptDir, "images/leapfrog.png")
     render = RendererOpenGL(verbose= True)

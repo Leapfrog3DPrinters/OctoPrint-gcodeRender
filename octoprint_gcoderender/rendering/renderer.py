@@ -3,7 +3,6 @@ __author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 import sys, os
 
 from math import *
-from OpenGL.GLU import *
 
 if sys.platform == "win32" or sys.platform == "darwin":
     os.environ["PYSDL2_DLL_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sdl')
@@ -11,8 +10,8 @@ if sys.platform == "win32" or sys.platform == "darwin":
     from OpenGL.GL import *
     CONTEXT_LIB="SDL"
 else:
-    from pyopengles import EGLContext
-    from OpenGL.GLES3 import *
+    from eglcontext import EGLContext
+    from OpenGL.GLES2 import *
     CONTEXT_LIB="EGL"
     
 from gcodeparser import *
@@ -51,9 +50,6 @@ DEFAULT_CAMERA_ROTATION=  (radians(45), radians(0), radians(0))
 DEFAULT_CAMERA_ROTATION_SPEED = radians(90.0)
 DEFAULT_CAMERA_DISTANCE = (-100., -100., 75.)
 
-# Abstract of the renderer class, allow interoperability between linux and win32
-#TODO: implement shared logic of win/linux
-#TODO: Make a blueprint that makes more sense, functionality should better match to function names for both OpenGL and OpenGLES
 class Renderer:
     def __init__(self, verbose = False):
         self.verbose = verbose
@@ -76,7 +72,6 @@ class Renderer:
 class RendererOpenGL(Renderer):
     def __init__(self, verbose = False):
         Renderer.__init__(self, verbose)
-        #TODO:Parent class to share all these properties with the OpenGL-renderer
         self.show_window = False
         self.is_initialized = False
         self.is_window_open = False
@@ -254,7 +249,6 @@ class RendererOpenGL(Renderer):
         
         # Define the shaders that draw the vertices. Camera and color are kept contant.
         vertex_shader_src = """
-            #version 150
             uniform mat4 ds_ModelViewProjection; 
             attribute vec4 ds_Position;
             void main()
@@ -264,7 +258,6 @@ class RendererOpenGL(Renderer):
         """
 
         fragment_shader_src = """
-            #version 150
             uniform vec4 ds_Color;
 
             void main()
@@ -293,7 +286,9 @@ class RendererOpenGL(Renderer):
             self.context = sdl2.SDL_GL_CreateContext(self.window)
 
         else:
-            self.context = EGLContext(depth_size = 8)
+            vertex_shader_src = "precision mediump float;" + os.linesep + vertex_shader_src
+            fragment_shader_src = "precision mediump float;" + os.linesep + fragment_shader_src
+            self.context = EGLContext(pref_width = self.width, pref_height = self.height)
             
         vertexShader = self._load_shader(vertex_shader_src, GL_VERTEX_SHADER)
         fragmentShader = self._load_shader(fragment_shader_src, GL_FRAGMENT_SHADER)
@@ -307,9 +302,6 @@ class RendererOpenGL(Renderer):
 
         self.logInfo("Attach shaders %s" % hex(glGetError()))
 
-        # Bind positions to attributes:
-        for pos, attrib in bindings:
-            glBindAttribLocation (self.program, pos, attrib)
 
         self.logInfo("Set bindings %s" % hex(glGetError()))
         
@@ -352,7 +344,7 @@ class RendererOpenGL(Renderer):
         if CONTEXT_LIB == 'SDL':
             pass
         else:
-            openegl.eglSwapBuffers(self.context.display, self.context.surface)
+            self.context.swap()
         
 
     def _bringCameraInPosition(self):
@@ -449,7 +441,7 @@ class RendererOpenGL(Renderer):
 
         ## Fill the buffer with the vertices
         ## TODO: This loads the entire vertice buffer at once to the GPU mem. (May be 100s of mbs), may be try and load this sequentially in chuncks of x mb
-        glBufferData(GL_ARRAY_BUFFER, cvertices, GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, len(cvertices)*sizeof(eglfloat), cvertices, GL_STATIC_DRAW)
         self.logInfo("Buffer filled %s" % hex(glGetError()))
         
         # Now, load the VBO into the shader's position parameter
@@ -467,7 +459,7 @@ class RendererOpenGL(Renderer):
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         self.logInfo("Disable buffer %s" % hex(glGetError()))
 
-        glDeleteBuffers(1, vbo)
+        glDeleteBuffers(1, eglints({ vbo }))
         self.logInfo("Delete buffer %s" % hex(glGetError()))
 
     def _updateCamera(self):

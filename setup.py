@@ -14,7 +14,7 @@ plugin_package = "octoprint_gcoderender"
 plugin_name = "OctoPrint-gcodeRender"
 
 # The plugin's version. Can be overwritten within OctoPrint's internal data via __plugin_version__ in the plugin module
-plugin_version = "1.0.0"
+plugin_version = "1.1.0"
 
 # The plugin's description. Can be overwritten within OctoPrint's internal data via __plugin_description__ in the plugin
 # module
@@ -33,7 +33,7 @@ plugin_url = "https://github.com/Leapfrog3DPrinters/OctoPrint-gcodeRender"
 plugin_license = "AGPLv3"
 
 # Any additional requirements besides OctoPrint should be listed here
-plugin_requires = ["Pillow","tinydb>=3.2.1"]
+plugin_requires = ["Pillow","tinydb>=3.2.1","PyOpenGL>=3.1.1a1", "PyOpenGL_accelerate"]
 
 ### --------------------------------------------------------------------------------------------------------------------
 ### More advanced options that you usually shouldn't have to touch follow after this point

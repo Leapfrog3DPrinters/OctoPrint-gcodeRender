@@ -40,12 +40,18 @@ if __name__ == "__main__":
     # Find file paths
     scriptPath = os.path.realpath(__file__)
     scriptDir = os.path.dirname(scriptPath)
-    gCodePath = os.path.join(scriptDir, "sample/leapfrog_tiny.gcode")
+    gCodePath = os.path.join(scriptDir, "sample/leapfrog.gcode")
 
     imagePath = os.path.join(scriptDir, "images/leapfrog.png")
     render = RendererOpenGL(verbose= True)
 
+    # Just parse the gcode
+    parser = GcodeParser(True)
+    t0 = time.time()
+    parser.parseFile(gCodePath)
+    t1 = time.time()
+
     # Start rendering the part
-    render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7))
-    render.renderModel(gCodePath, True)
-    render.save(imagePath)
+    #render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7))
+    #render.renderModel(gCodePath, True)
+    #render.save(imagePath)

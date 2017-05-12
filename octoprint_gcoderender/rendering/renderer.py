@@ -45,9 +45,7 @@ DEFAULT_PART_COLOR = (77./255., 120./255., 190./255.)
 DEFAULT_BED_COLOR=  (70./255., 70./255., 70./255.)
 DEFAULT_BACKGROUND_COLOR=  (1,1,1)
 DEFAULT_CAMERA_POSITION=  (0, -80.0, 100.0)
-DEFAULT_CAMERA_MOVEMENT_SPEED = 100.0
 DEFAULT_CAMERA_ROTATION=  (radians(45), radians(0), radians(0))
-DEFAULT_CAMERA_ROTATION_SPEED = radians(90.0)
 DEFAULT_CAMERA_DISTANCE = (-100., -100., 75.)
 
 class Renderer:
@@ -72,7 +70,6 @@ class Renderer:
 class RendererOpenGL(Renderer):
     def __init__(self, verbose = False):
         Renderer.__init__(self, verbose)
-        self.show_window = False
         self.is_initialized = False
         self.is_window_open = False
         self.width = DEFAULT_WIDTH
@@ -85,21 +82,16 @@ class RendererOpenGL(Renderer):
         self.part_color = DEFAULT_PART_COLOR
         self.camera_position = DEFAULT_CAMERA_POSITION
         self.camera_rotation = DEFAULT_CAMERA_ROTATION
+        self.camera_distance = DEFAULT_CAMERA_DISTANCE # Distance from object
         self.gcode_model = None
         self.base_vertices = None
-        self.display_list = None
-        self.rotation_direction = Vector3()
-        self.rotation_speed = DEFAULT_CAMERA_ROTATION_SPEED
-        self.movement_direction = Vector3()
-        self.movement_speed = DEFAULT_CAMERA_MOVEMENT_SPEED
-        self.camera_distance = DEFAULT_CAMERA_DISTANCE # Distance from object
         self.program = None
         self.context = None
         self.position_handle = None
         self.color_handle = None
         self.camera_handle = None
                 
-    def initialize(self, bedWidth, bedDepth, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT, showWindow = False,  backgroundColor = None, partColor = None, bedColor = None, cameraPosition = None, cameraRotation = None):
+    def initialize(self, bedWidth, bedDepth, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT, backgroundColor = None, partColor = None, bedColor = None, cameraPosition = None, cameraRotation = None):
         """
         Initializes and configures the renderer
         """
@@ -111,7 +103,6 @@ class RendererOpenGL(Renderer):
         self.bed_depth = bedDepth
         self.width = width
         self.height = height
-        self.show_window = showWindow
 
         if backgroundColor:
             self.background_color = backgroundColor
@@ -422,7 +413,6 @@ class RendererOpenGL(Renderer):
         # cvertices is a one-dimensional array: [x1a y1a z1a x1b y1b z1b x2a y2a ... ], where the number refers to the line number and a/b to start/end of the line.
         # Thus each line consists out of 6 floats
         N = len(self.base_vertices)
-        cvertices = self.base_vertices
         self.logInfo("Vertices loaded")
 
         # Set the shader's color parameter to the part color 
@@ -436,12 +426,10 @@ class RendererOpenGL(Renderer):
 
         glBindBuffer(GL_ARRAY_BUFFER, vbo)
         self.logInfo("Bind buffer: %s" % hex(glGetError()))
-        #self.logInfo("N vertices: %s" % N)
-        #self.logInfo("Buffer size: %s" % ctypes.sizeof(cvertices))
 
         ## Fill the buffer with the vertices
         ## TODO: This loads the entire vertice buffer at once to the GPU mem. (May be 100s of mbs), may be try and load this sequentially in chuncks of x mb
-        glBufferData(GL_ARRAY_BUFFER, len(cvertices)*sizeof(eglfloat), cvertices, GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, N*sizeof(eglfloat), self.base_vertices, GL_STATIC_DRAW)
         self.logInfo("Buffer filled %s" % hex(glGetError()))
         
         # Now, load the VBO into the shader's position parameter

@@ -4,7 +4,7 @@ import sys, os
 
 from math import *
 from OpenGL.GLU import *
-from ctypes import sizeof, c_float, c_void_p, c_uint, string_at
+from ctypes import cdll, sizeof, c_float, c_void_p, c_uint, string_at
 os.environ["PYSDL2_DLL_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../rendering/sdl')
 import sdl2
 from OpenGL.GL import *
@@ -213,6 +213,7 @@ scriptDir = os.path.dirname(scriptPath)
 gCodePath = os.path.join(scriptDir, "../sample/leapfrog.gcode")
 parser = GcodeParser(verbose = True)
 gcode_model = parser.parseFile(gCodePath)
+
 base_vertices = gcode_model.segments
 base_indices = gcode_model.indices
 

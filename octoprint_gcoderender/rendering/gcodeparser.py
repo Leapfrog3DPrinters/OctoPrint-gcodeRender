@@ -50,8 +50,6 @@ class GcodeParser:
                 if not comment and not self.skip_gcode_part:
                     # extract & clean command
                     command = bits[0].strip()
-        
-                    # TODO strip logical line number & checksum
 
                     # code is fist word, then args
                     comm = command.split(None, 1)

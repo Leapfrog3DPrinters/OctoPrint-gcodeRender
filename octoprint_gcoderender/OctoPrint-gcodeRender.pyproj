@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>f2047f94-3468-4af7-b09d-7eccf07a4363</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>__init__.py</StartupFile>
+    <StartupFile>experimental\renderer_c2.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -25,6 +25,8 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="experimental\renderer_c2.py" />
+    <Compile Include="experimental\renderer_c.py" />
     <Compile Include="experimental\renderer.py">
       <SubType>Code</SubType>
     </Compile>
@@ -65,6 +67,8 @@
     <Folder Include="rendering\" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="experimental\renderer_c2.png" />
+    <Content Include="experimental\renderer_c2_bolt.png" />
     <Content Include="rendering\sdl\SDL2.dll" />
     <Content Include="rendering\sdl\SDL2.framework\Headers" />
     <Content Include="rendering\sdl\SDL2.framework\Resources" />

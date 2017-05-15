@@ -35,7 +35,6 @@ def __plugin_load__():
 
 ### Standalone starts here
 # If started standalone, do some sample rendering
-# TODO: Remove this debugging feature
 if __name__ == "__main__":
     # Find file paths
     scriptPath = os.path.realpath(__file__)
@@ -45,13 +44,7 @@ if __name__ == "__main__":
     imagePath = os.path.join(scriptDir, "images/leapfrog.png")
     render = RendererOpenGL(verbose= True)
 
-    # Just parse the gcode
-    parser = GcodeParser(True)
-    t0 = time.time()
-    parser.parseFile(gCodePath)
-    t1 = time.time()
-
     # Start rendering the part
-    #render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7))
-    #render.renderModel(gCodePath, True)
-    #render.save(imagePath)
+    render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.7, 0.7, 0.7))
+    render.renderModel(gCodePath, True)
+    render.save(imagePath)

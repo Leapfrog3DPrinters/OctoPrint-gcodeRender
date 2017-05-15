@@ -63,8 +63,8 @@
     <Folder Include="rendering\sdl\SDL2.framework\Versions\A\Resources\" />
     <Folder Include="rendering\sdl\SDL2.framework\Versions\A\_CodeSignature\" />
     <Folder Include="rendering\sdl\x64\" />
-    <Folder Include="sample\" />
     <Folder Include="rendering\" />
+    <Folder Include="sample\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="experimental\renderer_c2.png" />
@@ -139,11 +139,11 @@
     <Content Include="rendering\sdl\x64\SDL2.dll" />
     <Content Include="sample\1line.gcode" />
     <Content Include="sample\acorn.gcode" />
-    <Content Include="sample\eiffel.gcode" />
     <Content Include="sample\bolt.gcode" />
+    <Content Include="sample\eiffel.gcode" />
     <Content Include="sample\leapfrog.gcode" />
-    <Content Include="sample\leapfrog_small.gcode" />
     <Content Include="sample\leapfrog_1layer.gcode" />
+    <Content Include="sample\leapfrog_small.gcode" />
     <Content Include="sample\leapfrog_tiny.gcode" />
     <Content Include="sample\spiral.gcode" />
     <Content Include="sample\terminator.gcode" />

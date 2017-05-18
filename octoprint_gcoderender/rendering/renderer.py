@@ -11,7 +11,7 @@ if sys.platform == "win32" or sys.platform == "darwin":
     CONTEXT_LIB="SDL"
 else:
     from eglcontext import EGLContext
-    from OpenGL.GLES2 import *
+    from OpenGL.GLES3 import *
     CONTEXT_LIB="EGL"
     
 from gcodeparser import *
@@ -24,13 +24,10 @@ from datetime import datetime
 
 # C-type helpers
 eglint = ctypes.c_int
-eglshort = ctypes.c_short
+eglfloat = ctypes.c_float
 
 def eglints(L):
-    """Converts a tuple to an array of eglints (would a pointer return be better?)"""
     return (eglint*len(L))(*L)
-
-eglfloat = ctypes.c_float
 
 def eglfloats(L):
     return (eglfloat*len(L))(*L)
@@ -176,21 +173,8 @@ class RendererOpenGL(Renderer):
             self._updateCamera()
 
         # Prepare the lines that should be drawn from the vertices
-        self._render()        
-        
-        # Draw the lines to the framebuffer
-        self._display()
+        self._render()
 
-    def clear(self):
-        """
-        Clears the frame and draws the bed
-        """
-        if not self.is_initialized or not  self.is_window_open:
-            return
-
-        self._clearAll()
-        self._renderBed()
-    
     def save(self, imageFile):
         """
         Save the framebuffer to a file
@@ -204,8 +188,9 @@ class RendererOpenGL(Renderer):
         data = (ctypes.c_uint8*N)()
 
         # Read all pixel colors
-        glReadPixels(0,0,self.width,self.height,GL_RGBA,GL_UNSIGNED_BYTE, ctypes.byref(data))
-        
+        glReadPixels(0,0,self.width,self.height,GL_RGBA,GL_UNSIGNED_BYTE, ctypes.byref(data))        
+        self.logInfo("Read pixels %s" % hex(glGetError()))
+
         # Write raw data to image file
         imgSize = (self.width, self.height)
         img = Image.frombytes('RGBA', imgSize, data)
@@ -217,10 +202,16 @@ class RendererOpenGL(Renderer):
             shader_src = [shader_src]
 
         shader = glCreateShader(shader_type)
+        self.logInfo("Create shader: %s" % hex(glGetError()))
+        self.logInfo("Shader no: %d" % shader)
+
         glShaderSource(shader, shader_src)
+        self.logInfo("Set shader src: %s" % hex(glGetError()))
+
         glCompileShader(shader)
+        self.logInfo("Compile shader: %s" % hex(glGetError()))
   
-        compiled = ctypes.c_int()
+        compiled = eglint()
 
         # Check compiled status
         compiled = glGetShaderiv(shader, GL_COMPILE_STATUS)
@@ -289,13 +280,11 @@ class RendererOpenGL(Renderer):
         self.logInfo("Create program %s" % hex(glGetError()))
 
         glAttachShader(self.program, vertexShader)
+        self.logInfo("Attach vertex shader %s" % hex(glGetError()))
+
         glAttachShader(self.program, fragmentShader)
+        self.logInfo("Attach fragment shader %s" % hex(glGetError()))
 
-        self.logInfo("Attach shaders %s" % hex(glGetError()))
-
-
-        self.logInfo("Set bindings %s" % hex(glGetError()))
-        
         glLinkProgram (self.program)
         self.logInfo("Link program %s" % hex(glGetError()))
 
@@ -322,21 +311,7 @@ class RendererOpenGL(Renderer):
         Render a blank screen
         """
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        self.logInfo("Clear all: %s" % hex(glGetError()))
-
-    def _display(self):
-        """
-        Empty the buffers and if a window is open, swap the buffers
-        """
-        # Update the window
-        glFlush()
-        glFinish()
-
-        if CONTEXT_LIB == 'SDL':
-            pass
-        else:
-            self.context.swap()
-        
+        self.logInfo("Clear all: %s" % hex(glGetError())) 
 
     def _bringCameraInPosition(self):
         """
@@ -377,11 +352,7 @@ class RendererOpenGL(Renderer):
         # Upload the camera matrix to OpenGLES
         glUniformMatrix4fv(self.camera_handle, 1, GL_FALSE, ccam)
 
-    def _render(self):
-        """
-        Does the main rendering of the bed and the part
-        """
-
+    def _renderBed(self):
         # Define the vertices that make up the print bed. The vertices define two triangles that make up a square 
         # (squares are not directly supported in OpenGLES)
         self.logInfo("Load vertices")
@@ -408,7 +379,8 @@ class RendererOpenGL(Renderer):
 
         glDisableVertexAttribArray(self.position_handle)
         self.logInfo("Disable array %s" % hex(glGetError()))
-        
+
+    def _renderPart(self):
         # Get the part vertices 
         # cvertices is a one-dimensional array: [x1a y1a z1a x1b y1b z1b x2a y2a ... ], where the number refers to the line number and a/b to start/end of the line.
         # Thus each line consists out of 6 floats
@@ -440,7 +412,8 @@ class RendererOpenGL(Renderer):
         # The position parameter is set, now start drawing. Because of GL_LINES, 2 vertices are expected per line = cvertices->a and b
         glDrawArrays( GL_LINES , 0, N )
         self.logInfo("Draw part %s" % hex(glGetError()))
-
+        self.logInfo("N vertices: %d" % (N / 3))
+         
         #Remove the binding to the VBO
         glDisableVertexAttribArray(self.position_handle)
         self.logInfo("Disable vertex array %s" % hex(glGetError()))
@@ -449,6 +422,15 @@ class RendererOpenGL(Renderer):
 
         glDeleteBuffers(1, eglints({ vbo }))
         self.logInfo("Delete buffer %s" % hex(glGetError()))
+
+    def _render(self):
+        """
+        Does the main rendering of the bed and the part
+        """
+        self._renderBed()
+        self._renderPart()
+        #glFlush()
+        #glFinish()
 
     def _updateCamera(self):
         """
@@ -474,7 +456,7 @@ class RendererOpenGL(Renderer):
         """
         Sets the clear color and enables depth testing
         """
-        #glLineWidth(3)
+        glLineWidth(3)
         glEnable(GL_DEPTH_TEST)
         self.logInfo("Enable depth test %s" % hex(glGetError()))
         glClearColor(1, 1, 1, 1)

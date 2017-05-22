@@ -281,7 +281,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
        
         # This is where the magic happens
         self._logger.debug("Begin rendering");
-        returncode = subprocess.call(["../gcodeparser/build/gcodeparser", path, imageDest["path"]])
+        returncode = subprocess.call(["gcodeparser", path, imageDest["path"]])
 
         if returncode == 0:
             # Rendering succeeded

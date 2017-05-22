@@ -1,6 +1,7 @@
 CC=gcc
 CXX=g++ -std=gnu++11
 RM=rm -f
+CP=cp -f
 MKDIR=mkdir -d
 ODIR=build
 CPPFLAGS=-g $(shell root-config --cflags)
@@ -13,6 +14,7 @@ all: gcodeparser
 
 gcodeparser: $(OBJS)
 	$(MKDIR) $(ODIR)
+	$(CP) *.glsl $(ODIR)/.
 	$(CXX) $(LDFLAGS) $(INC) -o $(ODIR)/gcodeparser $(OBJS) $(LDLIBS) 
 
 depend: .depend

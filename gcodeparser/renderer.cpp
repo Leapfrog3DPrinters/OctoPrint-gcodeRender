@@ -343,6 +343,5 @@ int main(int argc, char** argv)
 	//TODO: Validate input
 	Renderer * renderer = new Renderer(250, 250, argv[1]);
 	renderer->renderGcode(argv[2]);
-	getchar();
 	return 0;
 }

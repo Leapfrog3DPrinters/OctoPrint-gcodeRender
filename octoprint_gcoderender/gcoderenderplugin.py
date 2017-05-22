@@ -247,9 +247,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
         self.render = RendererOpenGL()
-
-        #TODO: 'Soft-code'. Move these settings to the settings file
-        self.render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.75, 0.75, 0.75), width = 250, height = 250)
         
         while True:
             job = self.renderJobs.get() # Will block until a job becomes available
@@ -287,11 +284,17 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Image path: {}".format(imageDest["path"]))
        
         # This is where the magic happens
-        self.render.renderModel(path, True)
-        self.render.save(imageDest["path"])
+        returncode = subprocess.call(["gcodeparser", path, imageDest["path"]])
 
-        self._logger.debug("Render complete: %s" % filename)
-        url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
+        if returncode == 0:
+            # Rendering succeeded
+            self._logger.debug("Render complete: %s" % filename)
+            url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
+        else:
+            # Rendering failed.
+            # TODO: set url and path to a failed-preview-image
+            self._logger.debug("Render failed: %s" % filename)
+            url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
 
         # Query the database for any existing records of the gcode file. 
         # Then, update or insert record

@@ -40,34 +40,16 @@
     <Compile Include="gcoderenderplugin.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="rendering\gcodeparser.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="rendering\matrix44.py" />
-    <Compile Include="rendering\renderer.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="rendering\eglcontext.py" />
-    <Compile Include="rendering\util.py" />
-    <Compile Include="rendering\vector3.py" />
-    <Compile Include="rendering\__init__.py">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="__init__.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="images\" />
     <Folder Include="experimental\" />
-    <Folder Include="rendering\sdl\" />
-    <Folder Include="rendering\sdl\x64\" />
-    <Folder Include="rendering\" />
     <Folder Include="sample\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="experimental\renderer_c2.png" />
     <Content Include="experimental\renderer_c2_bolt.png" />
-    <Content Include="rendering\sdl\SDL2.dll" />
-    <Content Include="rendering\sdl\x64\SDL2.dll" />
     <Content Include="sample\leapfrog.gcode" />
   </ItemGroup>
   <ItemGroup>

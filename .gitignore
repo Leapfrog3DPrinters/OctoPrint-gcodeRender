@@ -274,8 +274,8 @@ dist
 /octoprint_lui/obj
 /octoprint_lui/static/js/jsconfig.json
 *.egg
-/lib
-/include
-/gcodeparser
 *.sln
 *.pyproj
+/octoprint_gcoderender/images/leapfrog.png
+/gcodeparser/gcodeparser.vcxproj.filters
+/gcodeparser/gcodeparser.vcxproj

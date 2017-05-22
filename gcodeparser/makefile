@@ -1,6 +1,8 @@
 CC=gcc
 CXX=g++ -std=gnu++11
 RM=rm -f
+MKDIR=mkdir -d
+ODIR=build
 CPPFLAGS=-g $(shell root-config --cflags)
 INC=-I ../include
 SRCS=renderer.cpp gcodeparser.cpp RenderContextEGL.cpp shader.cpp
@@ -10,7 +12,8 @@ LDFLAGS=-lm -L/opt/vc/lib -L/usr/local/lib -lEGL -lGLESv2 -lpng -lz
 all: gcodeparser
 
 gcodeparser: $(OBJS)
-	$(CXX) $(LDFLAGS) $(INC) -o build/gcodeparser $(OBJS) $(LDLIBS) 
+	$(MKDIR) $(ODIR)
+	$(CXX) $(LDFLAGS) $(INC) -o $(ODIR)/gcodeparser $(OBJS) $(LDLIBS) 
 
 depend: .depend
 

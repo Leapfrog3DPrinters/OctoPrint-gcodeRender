@@ -244,8 +244,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         """"
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
-        self.render = RendererOpenGL()
-        
         while True:
             job = self.renderJobs.get() # Will block until a job becomes available
             self._logger.debug("Job found: {0}".format(job['filename']))
@@ -282,6 +280,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Image path: {}".format(imageDest["path"]))
        
         # This is where the magic happens
+        self._logger.debug("Begin rendering");
         returncode = subprocess.call(["../gcodeparser/build/gcodeparser", path, imageDest["path"]])
 
         if returncode == 0:

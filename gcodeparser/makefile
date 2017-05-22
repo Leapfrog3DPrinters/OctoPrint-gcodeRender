@@ -2,7 +2,7 @@ CC=gcc
 CXX=g++ -std=gnu++11
 RM=rm -f
 CP=cp -f
-MKDIR=mkdir -d
+MKDIR=mkdir -p
 ODIR=build
 CPPFLAGS=-g $(shell root-config --cflags)
 INC=-I ../include

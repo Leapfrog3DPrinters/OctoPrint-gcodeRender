@@ -33,7 +33,7 @@ plugin_url = "https://github.com/Leapfrog3DPrinters/OctoPrint-gcodeRender"
 plugin_license = "AGPLv3"
 
 # Any additional requirements besides OctoPrint should be listed here
-plugin_requires = ["Pillow","tinydb>=3.2.1","PyOpenGL>=3.1.1a1", "PyOpenGL_accelerate"]
+plugin_requires = ["Pillow","tinydb>=3.2.1"]
 
 ### --------------------------------------------------------------------------------------------------------------------
 ### More advanced options that you usually shouldn't have to touch follow after this point

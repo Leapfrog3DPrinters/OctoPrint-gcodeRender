@@ -3,14 +3,12 @@ from __future__ import absolute_import, division
 __author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 
 import os, sys, time
-import threading
+import threading, subprocess
 import Queue
 
 from flask import request, make_response, send_file, url_for, jsonify
 from tinydb import TinyDB, Query 
 from random import randint
-
-from octoprint_gcoderender.rendering.renderer import *
 
 import octoprint.plugin
 import octoprint.filemanager
@@ -284,7 +282,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Image path: {}".format(imageDest["path"]))
        
         # This is where the magic happens
-        returncode = subprocess.call(["gcodeparser", path, imageDest["path"]])
+        returncode = subprocess.call(["../gcodeparser/build/gcodeparser", path, imageDest["path"]])
 
         if returncode == 0:
             # Rendering succeeded

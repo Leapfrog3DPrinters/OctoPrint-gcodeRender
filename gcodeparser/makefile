@@ -10,7 +10,7 @@ LDFLAGS=-lm -L/opt/vc/lib -L/usr/local/lib -lEGL -lGLESv2 -lpng -lz
 all: gcodeparser
 
 gcodeparser: $(OBJS)
-	$(CXX) $(LDFLAGS) $(INC) -o gcodeparser $(OBJS) $(LDLIBS) 
+	$(CXX) $(LDFLAGS) $(INC) -o build/gcodeparser $(OBJS) $(LDLIBS) 
 
 depend: .depend
 

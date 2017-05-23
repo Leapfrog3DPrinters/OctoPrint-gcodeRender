@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <math.h>
 #include <string.h>
+#include <glm/glm.hpp>
 
 #include "constants.h"
 
@@ -28,11 +29,6 @@ using namespace std;
 #define R 1
 #define NUM_VERTICES 16
 #define STEP_SIZE ((float)M_PI * 2 / NUM_VERTICES)
-
-
-struct BBox {
-	float xmin, xmax, ymin, ymax, zmin, zmax;
-};
 
 class GcodeParser
 {
@@ -60,8 +56,8 @@ class GcodeParser
 
 	uint8_t draw = DRAW_LINES;
 
-	struct BBox bbox;
-	bool bbox_valid = false;
+	BBox bed_bbox;
+	BBox bbox;
 
 	bool skip = false;
 	const int nincludes = 9;
@@ -69,7 +65,7 @@ class GcodeParser
 
 public:
 	int number_of_lines = 0;
-	GcodeParser(const char *file, uint8_t draw_type);
+	GcodeParser(const char *file, uint8_t draw_type, BBox bed_bbox);
 	~GcodeParser();
 	bool get_bbox(BBox * bbox);
 	unsigned int get_vertices(const unsigned int n_lines, int * nvertices, float * vertices, int * nindices, short * indices);

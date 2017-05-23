@@ -1,11 +1,6 @@
 #ifdef _WIN32
 #include "RenderContextGLFW.h"
 
-void RenderContextGLFW::error_callback(int error, const char* description)
-{
-	printf("Error: %s\n", description);
-}
-
 bool RenderContextGLFW::activate()
 {
 	// Initialise GLFW

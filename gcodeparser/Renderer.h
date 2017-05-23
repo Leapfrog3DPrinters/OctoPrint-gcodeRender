@@ -49,11 +49,14 @@ class Renderer
 
 	float bed_width = 365.0f;
 	float bed_depth = 350.0f;
+	float bed_height = 200.0f;
+
+	glm::vec2 bed_origin_offset = { 37.0f, 33.0f };
 	float sync_offset = (bed_width - 35) / 2.f;
 	float part_color[4] = { 67.f / 255.f, 74.f / 255.f, 84.f / 255.f, 1.0f };
 	float bed_color[4] = { 0.75f, 0.75f, 0.75f, 1.0f };
 	float background_color[4] = { 1, 1, 1, 1 };
-	glm::vec3 camera_distance = { -100.f, -100.f, 75.f };
+	glm::vec3 camera_distance = { -300.f, -300.f, 75.f };
 	glm::vec3 camera_position = { 0, -80.0, 100.0 };
 
 	GLuint program, vertex_shader, fragment_shader, vertex_array;
@@ -80,6 +83,9 @@ class Renderer
 
 static Renderer * renderer;
 
-static PyObject * initialize_renderer(PyObject *self, PyObject *args);
-static PyObject * render_gcode(PyObject *self, PyObject *args);
+static PyObject *pyLogger;
+
+static PyObject * initialize_renderer(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+static PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
 extern "C" void initgcodeparser(void);
+static void log_msg(int type, char *msg);

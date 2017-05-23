@@ -35,23 +35,25 @@ void Renderer::assert_error(const char* part)
 	if (error != 0)
 	{
 		//const char* description = (char*)glewGetErrorString(error);
-		printf("Error: %s %04x\n", part, error);
+		char desc[1024];
+		sprintf(desc, "Error: %s %04x\n", part, error);
+		log_msg(error, desc);
 	}
 }
 
 void Renderer::initialize()
 {
-	printf("Initializing renderer\n");
+	log_msg(debug, "Initializing renderer\n");
 	renderContext->activate();
 
 #ifdef USE_GLEW
 	if (glewInit() != GLEW_OK) {
-		printf("Failed to initialize GLEW\n");
+		log_msg(error, "Failed to initialize GLEW\n");
 		return;
 	}
 #endif
 
-	printf("Creating program\n");
+	log_msg(debug, "Creating program\n");
 	this->createProgram();
 
 	glClearColor(background_color[0], background_color[1], background_color[2], background_color[3]);
@@ -73,7 +75,7 @@ void Renderer::initialize()
 #endif
 
 	this->bufferBed();
-	printf("Bed buffered\n");
+	log_msg(debug, "Bed buffered\n");
 }
 
 void Renderer::draw(const float color[4], GLuint ivbo, GLuint vbo, int n, GLenum element_type)
@@ -199,7 +201,8 @@ void Renderer::createProgram()
 
 void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 {
-	this->parser = new GcodeParser(gcodeFile, this->draw_type);
+	BBox bed_bbox = { -bed_origin_offset[0], bed_width + bed_origin_offset[0], -bed_origin_offset[1], bed_depth + bed_origin_offset[1], 0, bed_height };
+	this->parser = new GcodeParser(gcodeFile, this->draw_type, bed_bbox);
 
 	unsigned int vertices_size, indices_size;
 
@@ -212,13 +215,13 @@ void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	this->renderPart();
-	printf("Part rendered\n");
+	log_msg(debug, "Part rendered");
 
 	this->renderBed();
-	printf("Bed rendered\n");
+	log_msg(debug, "Bed rendered");
 
 	this->saveRender(imageFile);
-	printf("File saved\n");
+	log_msg(debug, "File saved");
 
 	delete[] vertices;
 	delete[] indices;
@@ -229,30 +232,33 @@ void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 void Renderer::setCamera()
 {
 	BBox bbox;
-	glm::vec3 object_center;
-	float scale = 1.0f;
-
+	glm::vec3 camera_position, camera_target, object_center;
+	float fov_deg = 45.0f;
 	if (parser->get_bbox(&bbox))
 	{
-		// Point camera at objecct
-		object_center = glm::vec3(bbox.xmax + bbox.xmin / 2, bbox.ymax + bbox.ymin / 2, bbox.zmax + bbox.zmin / 2);
-		scale = max(bbox.xmax - bbox.xmin, max(bbox.ymax - bbox.ymin, bbox.zmax - bbox.zmin)) / 175;
-	}
-	else
-	{
-		// Point to the middle of the bed
-		object_center = glm::vec3(bed_width / 2, bed_depth / 2, 0);
+		// Minimal smallest offset to bed edges
+		float x_offset_min = min(bed_origin_offset[0] + bbox.xmin, bed_width - bed_origin_offset[0] - bbox.xmax);
+		float y_offset_min = min(bed_origin_offset[1] + bbox.ymin, bed_depth - bed_origin_offset[1] - bbox.ymax);
+
+		// Range offset from 0.0 (center of bed, smallest possible angle), to 1.0 (full bed used, widest angle needed)
+		float x_factor = 1.0f - x_offset_min / (bed_width / 2);
+		float y_factor = 1.0f - y_offset_min / (bed_depth / 2);
+
+		// Use the biggest factor and scale to max 60 degrees (which is ~ the whole bed)
+		float factor_max = max(x_factor, y_factor);
+		fov_deg = max(fov_deg, factor_max * 60.0f);
 	}
 
-	camera_position = object_center + (camera_distance * scale);
+	// Point to the middle of the bed
+	camera_target = glm::vec3((bed_width - bed_origin_offset[0]) / 2, (bed_depth - bed_origin_offset[1]) / 2, 0);
 
+	camera_position = camera_target + camera_distance;
 	glm::mat4 mvp, projection, view, model;
-
 	glm::vec3 up = glm::vec3(0, 0, 1);
 
 	model = glm::mat4(1.0f);
-	view = glm::lookAt(camera_position, object_center, up);
-	projection = glm::perspective<float>((float)(90.0 * M_PI / 180.0), width / (float)height, 0.1f, 10000.0f);
+	view = glm::lookAt(camera_position, camera_target, up);
+	projection = glm::perspective<float>(glm::radians(fov_deg), width / (float)height, 0.1f, 1000.0f);
 
 	mvp = projection * view * model;
 
@@ -274,25 +280,32 @@ void Renderer::bufferBed()
 {
 	int bedvertices_n;
 	float * bedvertices;
+
+	float x_min = -bed_origin_offset[0];
+	float x_max = bed_width-bed_origin_offset[0];
+	float y_min = -bed_origin_offset[1];
+	float y_max = bed_depth - bed_origin_offset[1];
+
+
 	// X, y, z, nx, ny, nz
 	if (draw_type == DRAW_TUBES)
 	{
 		bedvertices_n = 24;
 		bedvertices = new float[bedvertices_n] {
-			0, 0, 0, 0, 0, 1.0f,
-			0, bed_depth, 0, 0, 0, 1.0f,
-			bed_width, bed_depth, 0, 0, 0, 1.0f,
-			bed_width, 0, 0, 0, 0, 1.0f
+			x_min, y_min, 0, 0, 0, 1.0f,
+			x_min, y_max, 0, 0, 0, 1.0f,
+			x_max, y_max, 0, 0, 0, 1.0f,
+			x_max, y_min, 0, 0, 0, 1.0f
 		};
 	}
 	else
 	{
 		bedvertices_n = 12;
 		bedvertices = new float[bedvertices_n] {
-			0, 0, 0, 
-			0, bed_depth, 0,
-			bed_width, bed_depth, 0,
-			bed_width, 0, 0
+			x_min, y_min, 0,
+			x_min, y_max, 0,
+			x_max, y_max, 0,
+			x_max, y_min, 0,
 		};
 	}
 
@@ -314,7 +327,7 @@ void Renderer::renderBed()
 
 void Renderer::renderPart()
 {
-	printf("Begin rendering part\n");
+	log_msg(debug, "Begin rendering part");
 	memory_used = 0;
 	int nvertices, nindices;
 	buffer_info buff = buffer_info();
@@ -350,7 +363,9 @@ void Renderer::renderPart()
 		deleteBuffer(buff.index_buffer, buff.vertex_buffer);
 	}
 
-	printf("Total data processed: %d kb\n", memory_used / 1000);
+	char resp[512];
+	sprintf(resp, "Total data processed: %d kb", memory_used / 1000);
+	log_msg(debug, resp);
 }
 
 void Renderer::saveRender(const char* imageFile)
@@ -366,8 +381,6 @@ void Renderer::saveRender(const char* imageFile)
 	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, imgData);
 	assert_error("glReadPixels");
 
-	printf("imgData: %d %d %d %d %d %d %d %d\n", imgData[0], imgData[1], imgData[2], imgData[3], imgData[4], imgData[5], imgData[6], imgData[7]);
-
 	FILE *fp = NULL;
 	png_structp png_ptr = NULL;
 	png_infop info_ptr = NULL;
@@ -375,30 +388,25 @@ void Renderer::saveRender(const char* imageFile)
 	// Open file for writing (binary mode)
 	fp = fopen(imageFile, "wb");
 	if (fp == NULL) {
-		printf("Could not open file %s for writing\n", imageFile);
+		log_msg(error, "Could not open image file for writing");
 		//goto finalise;
 	}
 
 	// Initialize write structure
 	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 	if (png_ptr == NULL) {
-		printf("Could not allocate write struct\n");
+		log_msg(error, "Could not allocate PNG write struct");
 		//goto finalise;
 	}
 
 	// Initialize info structure
 	info_ptr = png_create_info_struct(png_ptr);
 	if (info_ptr == NULL) {
-		printf("Could not allocate info struct\n");
+		log_msg(error, "Could not allocate PNG info struct");
 		//goto finalise;
 	}
 
-	// Setup Exception handling
 	//TODO: Error handling without setjmp (not thread-safe)
-	//if (setjmp(png_jmpbuf(png_ptr))) {
-	//	printf("Error during png creation\n");
-	//	//goto finalise;
-	//}
 
 	png_init_io(png_ptr, fp);
 
@@ -432,27 +440,27 @@ void Renderer::saveRender(const char* imageFile)
 // Python API
 
 static PyMethodDef GcodeParserMethods[] = {
-	{ "initialize", initialize_renderer, METH_VARARGS, "Initialize the renderer" },
-	{"render_gcode",  render_gcode, METH_VARARGS,
-	"Render a gcode file to a PNG image file."},
+	{ "initialize", (PyCFunction) initialize_renderer, METH_VARARGS | METH_KEYWORDS, "Initialize the renderer" },
+	{"render_gcode",  (PyCFunction) render_gcode, METH_VARARGS | METH_KEYWORDS, "Render a gcode file to a PNG image file."},
 	{NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
 extern "C" void initgcodeparser(void)
 {
-	printf("Initializing renderer extension\n");
-
 	(void)Py_InitModule("gcodeparser", GcodeParserMethods);
 }
 
-PyObject * render_gcode(PyObject *self, PyObject *args)
+PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[])
 {
-	printf("Begin rendering file\n");
+	log_msg(debug, "Begin rendering file");
+
+	char *kwlist[] = { "gcode_file", "image_file", NULL };
 
 	const char *gcode_file;
 	const char *image_file;
 
-	if (!PyArg_ParseTuple(args, "ss", &gcode_file, &image_file))
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kwlist,
+		&gcode_file, &image_file))
 		return NULL;
 
 	//TODO: Input validation	
@@ -461,14 +469,45 @@ PyObject * render_gcode(PyObject *self, PyObject *args)
 	return Py_BuildValue("i", 0);
 }
 
-PyObject * initialize_renderer(PyObject *self, PyObject *args)
-{
-	printf("Creating renderer\n");
+PyObject * initialize_renderer(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[])
+{	
+	char *kwlist[] = { "logger", NULL };
 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwlist,
+		&pyLogger))
+		return NULL;
+	
 	renderer = new Renderer(250, 250);
 	renderer->initialize();
 
 	return Py_BuildValue("i", 0);
+}
+
+static void log_msg(int type, char *msg)
+{
+	static PyObject *string = NULL;
+
+	// build msg-string
+	string = Py_BuildValue("s", msg);
+
+	// call function depending on loglevel
+	switch (type)
+	{
+		case info:
+			PyObject_CallMethod(pyLogger, "info", "O", string);
+			break;
+		case warning:
+			PyObject_CallMethod(pyLogger, "warn", "O", string);
+			break;
+		case error:
+			PyObject_CallMethod(pyLogger, "error", "O", string);
+			break;
+		case debug:
+			PyObject_CallMethod(pyLogger, "debug", "O", string);
+			break;
+	}
+
+	Py_DECREF(string);
 }
 
 int main(int argc, char** argv)
@@ -477,7 +516,7 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 	if (argc > 1)
 	{
-		renderer = new Renderer(250, 250);
+		renderer = new Renderer(1024, 1024);
 		renderer->initialize();
 		renderer->renderGcode(argv[1], argv[2]);
 		getchar();

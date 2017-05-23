@@ -1,10 +1,21 @@
 #include "gcodeparser.h"
 
-GcodeParser::GcodeParser(const char *file, uint8_t draw_type)
+GcodeParser::GcodeParser(const char *file, uint8_t draw_type, BBox bed_bbox)
 {
 	this->file = file;
 	this->number_of_lines = get_number_of_lines();
 	this->draw = draw_type;
+
+	// Mirror the bounding box of the bed to that of the part, so we know when we have valid
+	// part dimensions or not
+	this->bed_bbox = bed_bbox;
+
+	this->bbox.xmin = bed_bbox.xmax;
+	this->bbox.xmax = bed_bbox.xmin;
+	this->bbox.ymin = bed_bbox.ymax;
+	this->bbox.ymax = bed_bbox.ymin;
+	this->bbox.zmin = bed_bbox.zmax;
+	this->bbox.zmax = bed_bbox.zmin;
 
 	// create a file-reading object
 	fin.open(file);
@@ -206,8 +217,6 @@ void GcodeParser::parse_g1(const char * line)
 		bbox.zmin = min(bbox.zmin, absolute[Z]);
 		bbox.zmax = max(bbox.zmax, absolute[Z]);
 
-		bbox_valid = true;
-
 		if(draw == DRAW_LINES)
 			build_vertices_lines();
 		else
@@ -348,7 +357,14 @@ void GcodeParser::parse_line(const char *line)
 bool GcodeParser::get_bbox(BBox * bbox)
 {
 	*bbox = this->bbox;
-	return this->bbox_valid;
+
+	return this->bbox.xmin < bed_bbox.xmax
+		&& this->bbox.xmax > bed_bbox.xmin
+		&& this->bbox.ymin < bed_bbox.ymax
+		&& this->bbox.ymax > bed_bbox.ymin
+		&& this->bbox.zmin < bed_bbox.zmax
+		&& this->bbox.zmax > bed_bbox.zmin;
+
 }
 
 

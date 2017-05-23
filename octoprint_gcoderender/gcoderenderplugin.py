@@ -246,8 +246,8 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
 
-        # It is important we initialize the gcoderender on this thread
-        gcodeparser.initialize()
+        # It is important we initialize the gcoderender on this thread (for the drawing context)
+        gcodeparser.initialize(logger=self._logger)
 
         while True:
             job = self.renderJobs.get() # Will block until a job becomes available
@@ -288,11 +288,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Begin rendering");
         returncode = 1
         try:
-            #returncode = subprocess.call(["gcodeparser", path, imageDest["path"]])
             returncode = gcodeparser.render_gcode(path, imageDest["path"])
-        except OSError as e:
-            self._logger.debug("Error during process exec: %s" % e.strerror)
-
+        except Exception as e:
+            self._logger.debug("Error in Gcodeparser: %s" % e.message)
 
         if returncode == 0:
             # Rendering succeeded

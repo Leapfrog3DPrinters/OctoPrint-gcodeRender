@@ -2,39 +2,6 @@
 
 using namespace std;
 
-//GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path){
-//
-//	// Read the Vertex Shader code from the file
-//	std::string VertexShaderCode;
-//	std::ifstream VertexShaderStream(vertex_file_path, std::ios::in);
-//	if(VertexShaderStream.is_open()){
-//		std::string Line = "";
-//		while(getline(VertexShaderStream, Line))
-//			VertexShaderCode += "\n" + Line;
-//		VertexShaderStream.close();
-//	}else{
-//		printf("Impossible to open %s. Are you in the right directory ? \n", vertex_file_path);
-//		getchar();
-//		return 0;
-//	}
-//
-//	// Read the Fragment Shader code from the file
-//	std::string FragmentShaderCode;
-//	std::ifstream FragmentShaderStream(fragment_file_path, std::ios::in);
-//	if(FragmentShaderStream.is_open()){
-//		std::string Line = "";
-//		while(getline(FragmentShaderStream, Line))
-//			FragmentShaderCode += "\n" + Line;
-//		FragmentShaderStream.close();
-//	}
-//
-//
-//	char const * VertexSourcePointer = VertexShaderCode.c_str();
-//	char const * FragmentSourcePointer = FragmentShaderCode.c_str();
-//
-//	return LoadShadersFromSource(VertexSourcePointer, FragmentSourcePointer);
-//}
-
 GLuint LoadShadersFromSource(const char * vertex_shader, const char * fragment_shader, GLuint * program_id, GLuint * vertex_shader_id, GLuint * fragment_shader_id)
 {
 	GLint Result = GL_FALSE;
@@ -64,7 +31,6 @@ GLuint LoadShadersFromSource(const char * vertex_shader, const char * fragment_s
 		printf("%s\n", &VertexShaderErrorMessage[0]);
 	}
 
-
 	// Compile Fragment Shader
 	printf("Compiling fragment shader\n");
 
@@ -79,8 +45,6 @@ GLuint LoadShadersFromSource(const char * vertex_shader, const char * fragment_s
 		glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
 		printf("%s\n", &FragmentShaderErrorMessage[0]);
 	}
-
-
 
 	// Link the program
 	printf("Linking program\n");

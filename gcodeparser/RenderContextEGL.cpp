@@ -50,6 +50,7 @@ bool RenderContextEGL::activate()
 
 RenderContextEGL::~RenderContextEGL()
 {
-
+	eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+	eglTerminate(display);
 }
 #endif

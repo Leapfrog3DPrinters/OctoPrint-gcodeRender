@@ -1,28 +1,31 @@
 #include "Renderer.h"
 
-Renderer::Renderer(int width, int height, const char * filename)
+Renderer::Renderer(int width, int height)
 {
 	this->width = width;
 	this->height = height;
 
 	this->renderContext = new T_RENDERCONTEXT(width, height);
-	this->parser = new GcodeParser(filename, this->draw_type);
 
-	unsigned int vertices_size, indices_size;
-
-	this->parser->get_buffer_size(&vertices_size, &indices_size);
-
-	vertices = new float[this->lines_per_run * vertices_size];
-	indices = new short[this->lines_per_run * indices_size];
-
-	int num_buffers = this->parser->number_of_lines / this->lines_per_run + 1;
-	buffers = new buffer_info[num_buffers];
-	printf("Expected number of buffers: %d\n", num_buffers);
+	std::vector<buffer_info> buffers;
 }
 
 Renderer::~Renderer()
 {
+#ifdef NEED_VERTEX_ARRAY_OBJECT
+	glBindVertexArray(0);
+	assert_error("Unbind vertex array");
 
+	glDeleteVertexArrays(1, &vertex_array);
+	assert_error("Delete vertex array");
+#endif
+
+	UnloadShaders(this->program, this->vertex_shader, this->fragment_shader);
+
+	delete[] vertices;
+	delete[] indices;
+	delete parser;
+	delete renderContext;
 }
 
 void Renderer::assert_error(const char* part)
@@ -34,6 +37,43 @@ void Renderer::assert_error(const char* part)
 		//const char* description = (char*)glewGetErrorString(error);
 		printf("Error: %s %04x\n", part, error);
 	}
+}
+
+void Renderer::initialize()
+{
+	printf("Initializing renderer\n");
+	renderContext->activate();
+
+#ifdef USE_GLEW
+	if (glewInit() != GLEW_OK) {
+		printf("Failed to initialize GLEW\n");
+		return;
+	}
+#endif
+
+	printf("Creating program\n");
+	this->createProgram();
+
+	glClearColor(background_color[0], background_color[1], background_color[2], background_color[3]);
+	assert_error("Set clear color");
+
+	if (draw_type == DRAW_TUBES)
+	{
+		glUniform3f(light_handle, bed_width / 2, -50.0, 300.0);
+		assert_error("Set light");
+	}
+
+#ifdef NEED_VERTEX_ARRAY_OBJECT
+
+	glGenVertexArrays(1, &vertex_array);
+	assert_error("gen vertex array");
+
+	glBindVertexArray(vertex_array);
+	assert_error("bind vertex array");
+#endif
+
+	this->bufferBed();
+	printf("Bed buffered\n");
 }
 
 void Renderer::draw(const float color[4], GLuint ivbo, GLuint vbo, int n, GLenum element_type)
@@ -91,74 +131,76 @@ void Renderer::buffer(const int nvertices, const float * vertices, const int nin
 	assert_error("generate index buffer");
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ivbo);
 	assert_error("bind index buffer");
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, nindices * sizeof(int), indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, nindices * sizeof(short), indices, GL_STATIC_DRAW);
 	assert_error("index buffer data");
 
+}
+
+void Renderer::deleteBuffer(GLuint ivbo, GLuint vbo)
+{
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	assert_error("Unbind element array buffer");
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	assert_error("Unbind vertex array buffer");
+
+	GLuint toDelete[] = { vbo, ivbo };
+	glDeleteBuffers(2, toDelete);
+	assert_error("Delete buffers");
 }
 
 void Renderer::createProgram()
 {
 	GLuint program;
+
 	if (draw_type == DRAW_LINES)
-		program = LoadShaders("line_vertexshader.glsl", "line_fragmentshader.glsl");
+		program = LoadShadersFromSource(line_vertexshader, line_fragmentshader, &(this->program), &(this->vertex_shader), &(this->fragment_shader));
 	else
-		program = LoadShaders("tube_vertexshader.glsl", "tube_fragmentshader.glsl");
+		program = LoadShadersFromSource(tube_vertexshader, tube_fragmentshader, &(this->program), &(this->vertex_shader), &(this->fragment_shader));
 
 	// Shader magic
 	position_handle = glGetAttribLocation(program, "vertexPosition_modelspace");
+	assert_error("Get position handle");
+
 	color_handle = glGetUniformLocation(program, "ds_Color");
+	assert_error("Get color handle");
 
 	camera_handle = glGetUniformLocation(program, "MVP");
+	assert_error("Get camera handle");
 
 	if (draw_type == DRAW_TUBES)
 	{
 		light_handle = glGetUniformLocation(program, "LightPosition_worldspace");
+		assert_error("Get light handle");
 		normal_handle = glGetAttribLocation(program, "vertexNormal_modelspace");
+		assert_error("Get normal handle");
 
 		m_handle = glGetUniformLocation(program, "M");
+		assert_error("Get model-matrix handle");
 		v_handle = glGetUniformLocation(program, "V");
+		assert_error("Get view-matrix handle");
 	}
 
 	glUseProgram(program);
+	assert_error("Use program");
 
 	glEnable(GL_DEPTH_TEST);
+	assert_error("Enable depth test");
 }
 
-void Renderer::renderGcode(const char* imageFile)
+void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 {
-	renderContext->activate();
+	this->parser = new GcodeParser(gcodeFile, this->draw_type);
 
-#ifdef USE_GLEW
-	if (glewInit() != GLEW_OK) {
-		printf("Failed to initialize GLEW\n");
-		return;
-	}
-#endif
+	unsigned int vertices_size, indices_size;
 
-	this->createProgram();
+	this->parser->get_buffer_size(&vertices_size, &indices_size);
 
-	
+	vertices = new float[this->lines_per_run * vertices_size];
+	indices = new short[this->lines_per_run * indices_size];
 
-	glClearColor(background_color[0], background_color[1], background_color[2], background_color[3]);
-
-	if (draw_type == DRAW_TUBES)
-	{
-		glUniform3f(light_handle, bed_width / 2, -50.0, 300.0);
-		assert_error("light");
-	}
-
+	// Start with a clean slate
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-#ifdef NEED_VERTEX_ARRAY_OBJECT
-	GLuint vertexArray;
-	glGenVertexArrays(1, &vertexArray);
-	assert_error("gen vertex array");
-
-	glBindVertexArray(vertexArray);
-	assert_error("bind vertex array");
-#endif
-	this->bufferBed();
-	printf("Bed buffered\n");
 
 	this->bufferPart();
 	printf("Part buffered\n");
@@ -174,15 +216,31 @@ void Renderer::renderGcode(const char* imageFile)
 
 	this->saveRender(imageFile);
 	printf("File saved\n");
+
+	delete[] vertices;
+	delete[] indices;
+	delete this->parser;
+	this->buffers.clear();
 }
 
 void Renderer::setCamera()
 {
-	BBox bbox = *parser->get_bbox();
+	BBox bbox;
+	glm::vec3 object_center;
+	float scale = 1.0f;
 
-	// Point camera at objecct
-	glm::vec3 object_center = glm::vec3(bbox.xmax + bbox.xmin / 2, bbox.ymax + bbox.ymin / 2, bbox.zmax + bbox.zmin / 2);
-	float scale = max(bbox.xmax - bbox.xmin, max(bbox.ymax - bbox.ymin, bbox.zmax - bbox.zmin)) / 175;
+	if (parser->get_bbox(&bbox))
+	{
+		// Point camera at objecct
+		object_center = glm::vec3(bbox.xmax + bbox.xmin / 2, bbox.ymax + bbox.ymin / 2, bbox.zmax + bbox.zmin / 2);
+		scale = max(bbox.xmax - bbox.xmin, max(bbox.ymax - bbox.ymin, bbox.zmax - bbox.zmin)) / 175;
+	}
+	else
+	{
+		// Point to the middle of the bed
+		object_center = glm::vec3(bed_width / 2, bed_depth / 2, 0);
+	}
+
 	camera_position = object_center + (camera_distance * scale);
 
 	glm::mat4 mvp, projection, view, model;
@@ -191,7 +249,7 @@ void Renderer::setCamera()
 
 	model = glm::mat4(1.0f);
 	view = glm::lookAt(camera_position, object_center, up);
-	projection = glm::perspective<float>((float) (90.0 * M_PI / 180.0), width / (float)height, 0.1f, 10000.0f);
+	projection = glm::perspective<float>((float)(90.0 * M_PI / 180.0), width / (float)height, 0.1f, 10000.0f);
 
 	mvp = projection * view * model;
 
@@ -199,6 +257,7 @@ void Renderer::setCamera()
 
 	glUniformMatrix4fv(camera_handle, 1, GL_FALSE, &mvp[0][0]);
 	assert_error("Set camera matrix");
+
 	if (draw_type == DRAW_TUBES)
 	{
 		glUniformMatrix4fv(m_handle, 1, GL_FALSE, &model[0][0]);
@@ -224,6 +283,7 @@ void Renderer::bufferBed()
 
 	bed_buffer.nindices = bedindices_n;
 	bed_buffer.nvertices = bedvertices_n;
+
 	buffer(bedvertices_n, bedvertices, bedindices_n, bedindices, &bed_buffer.vertex_buffer, &bed_buffer.index_buffer);
 }
 
@@ -238,51 +298,52 @@ void Renderer::bufferPart()
 	int nvertices, nindices;
 	while (parser->get_vertices(lines_per_run, &nvertices, vertices, &nindices, indices))
 	{
-		buffer_info* target_buffer = &buffers[buffer_i];
-		(*target_buffer).nindices = nindices;
-		(*target_buffer).nvertices = nvertices;
+		buffer_info buff = buffer_info();
 
-		buffer(nvertices, vertices, nindices, indices, &(*target_buffer).vertex_buffer, &(*target_buffer).index_buffer);
-		buffer_i++;
-		printf("Buffer: %d\n", buffer_i);
+		buff.nindices = nindices;
+		buff.nvertices = nvertices;
+		buffer(nvertices, vertices, nindices, indices, &buff.vertex_buffer, &buff.index_buffer);
+
+		buffers.push_back(buff);
 	}
-
 }
 
 void Renderer::renderPart()
 {
-	for (int i = 0; i < buffer_i; i++)
+	for (unsigned int i = 0; i < buffers.size(); i++)
 	{
-		buffer_info* target_buffer = &buffers[i];
-
 		if (draw_type == DRAW_LINES)
-			draw(part_color, (*target_buffer).index_buffer, (*target_buffer).vertex_buffer, (*target_buffer).nindices, GL_LINES);
+			draw(part_color, buffers[i].index_buffer, buffers[i].vertex_buffer, buffers[i].nindices, GL_LINES);
 		else
-			draw(part_color, (*target_buffer).index_buffer, (*target_buffer).vertex_buffer, (*target_buffer).nindices, GL_TRIANGLES);
+			draw(part_color, buffers[i].index_buffer, buffers[i].vertex_buffer, buffers[i].nindices, GL_TRIANGLES);
+
+		deleteBuffer(buffers[i].index_buffer, buffers[i].vertex_buffer);
 	}
 }
 
 void Renderer::saveRender(const char* imageFile)
 {
-	const int n = 4 * width*height;
-	uint8_t *imgData = (uint8_t *)malloc(n * sizeof(uint8_t));
-	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, imgData);
+	// Wait for all commands to complete before we read the buffer
+	glFlush();
+	glFinish();
 
-	this->assert_error("glReadPixels");
+	// Create a buffer for the pixel data
+	const int n = 4 * width*height;
+	uint8_t *imgData = new uint8_t[n];
+
+	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, imgData);
+	assert_error("glReadPixels");
 
 	printf("imgData: %d %d %d %d %d %d %d %d\n", imgData[0], imgData[1], imgData[2], imgData[3], imgData[4], imgData[5], imgData[6], imgData[7]);
 
-	int code = 0;
 	FILE *fp = NULL;
 	png_structp png_ptr = NULL;
 	png_infop info_ptr = NULL;
-	png_bytep row = NULL;
 
 	// Open file for writing (binary mode)
 	fp = fopen(imageFile, "wb");
 	if (fp == NULL) {
 		printf("Could not open file %s for writing\n", imageFile);
-		code = 1;
 		//goto finalise;
 	}
 
@@ -290,7 +351,6 @@ void Renderer::saveRender(const char* imageFile)
 	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 	if (png_ptr == NULL) {
 		printf("Could not allocate write struct\n");
-		code = 1;
 		//goto finalise;
 	}
 
@@ -298,14 +358,12 @@ void Renderer::saveRender(const char* imageFile)
 	info_ptr = png_create_info_struct(png_ptr);
 	if (info_ptr == NULL) {
 		printf("Could not allocate info struct\n");
-		code = 1;
 		//goto finalise;
 	}
 
 	// Setup Exception handling
 	if (setjmp(png_jmpbuf(png_ptr))) {
 		printf("Error during png creation\n");
-		code = 1;
 		//goto finalise;
 	}
 
@@ -320,7 +378,7 @@ void Renderer::saveRender(const char* imageFile)
 	png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height * sizeof(png_bytep));
 
 	for (int i = 0; i < height; ++i) {
-		rows[i] = &imgData[(height-i-1) * width * 4];
+		rows[i] = &imgData[(height - i - 1) * width * 4];
 	}
 
 	png_set_rows(png_ptr, info_ptr, rows);
@@ -329,19 +387,77 @@ void Renderer::saveRender(const char* imageFile)
 
 	png_free(png_ptr, rows);
 
-
 	if (fp != NULL) fclose(fp);
 	if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
 	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
 
+	delete[] imgData;
+
 	return;
+}
+
+// Python API
+
+static PyMethodDef GcodeParserMethods[] = {
+	{ "initialize", initialize_renderer, METH_VARARGS, "Initialize the renderer" },
+	{"render_gcode",  render_gcode, METH_VARARGS,
+	"Render a gcode file to a PNG image file."},
+	{NULL, NULL, 0, NULL}        /* Sentinel */
+};
+
+extern "C" void initgcodeparser(void)
+{
+	printf("Initializing renderer extension\n");
+
+	(void)Py_InitModule("gcodeparser", GcodeParserMethods);
+}
+
+PyObject * render_gcode(PyObject *self, PyObject *args)
+{
+	printf("Begin rendering file\n");
+
+	const char *gcode_file;
+	const char *image_file;
+
+	if (!PyArg_ParseTuple(args, "ss", &gcode_file, &image_file))
+		return NULL;
+
+	//TODO: Input validation	
+	renderer->renderGcode(gcode_file, image_file);
+
+	return Py_BuildValue("i", 0);
+}
+
+PyObject * initialize_renderer(PyObject *self, PyObject *args)
+{
+	printf("Creating renderer\n");
+
+	renderer = new Renderer(250, 250);
+	renderer->initialize();
+
+	return Py_BuildValue("i", 0);
 }
 
 int main(int argc, char** argv)
 {
-	printf("Started gcodeparser");
-	//TODO: Validate input
-	Renderer * renderer = new Renderer(250, 250, argv[1]);
-	renderer->renderGcode(argv[2]);
+
+#ifdef _DEBUG
+	if (argc > 1)
+	{
+		initialize_renderer(NULL, NULL);
+		renderer->renderGcode(argv[1], argv[2]);
+		return 0;
+	}
+#endif
+
+	/* Pass argv[0] to the Python interpreter */
+	Py_SetProgramName(argv[0]);
+
+	/* Initialize the Python interpreter.  Required. */
+	Py_Initialize();
+
+	/* Add a static module */
+	initgcodeparser();
+
 	return 0;
 }

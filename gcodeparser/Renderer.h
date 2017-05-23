@@ -3,6 +3,9 @@
 #define _USE_MATH_DEFINES
 //#define GLEW_NO_GLU
 
+// Python
+#include <Python.h>
+
 // Include standard headers
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,15 +15,13 @@
 // Include libpng
 #include <png.h>
 
-// Include GLEW
-//#include <GL/glew.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "constants.h"
 #include "glinit.h"
 #include "shader.h"
+#include "shaders.h"
 #include "gcodeparser.h"
 
 struct buffer_info {
@@ -38,9 +39,9 @@ class Renderer
 
 	uint8_t draw_type = DRAW_LINES;
 	uint16_t lines_per_run = 10000; // Number of lines to parse before rendering
-	buffer_info * buffers;
+	std::vector<buffer_info> buffers;
 	buffer_info bed_buffer;
-	int buffer_i;
+	int buffer_i = 0;
 
 	float * vertices;
 	short * indices;
@@ -54,17 +55,20 @@ class Renderer
 	glm::vec3 camera_distance = { -100.f, -100.f, 75.f };
 	glm::vec3 camera_position = { 0, -80.0, 100.0 };
 
+	GLuint program, vertex_shader, fragment_shader, vertex_array;
 	GLint position_handle, normal_handle, color_handle, m_handle, v_handle, light_handle, camera_handle;
 
 	public:
-		Renderer(int width, int height, const char * filename);
+		Renderer(int width, int height);
 		~Renderer();
-		void renderGcode(const char* imageFile);
+		void initialize();
+		void renderGcode(const char* gcodeFile, const char* imageFile);
 
 	private:
 		void assert_error(const char* part);
 		void draw(const float color[4], GLuint ivbo, GLuint vbo, int n, GLenum element_type);
 		void buffer(const int nvertices, const float * vertices, const int nindices, const short * indices, GLuint * vbo, GLuint * ivbo);
+		void deleteBuffer(GLuint ivbo, GLuint vbo);
 		void createProgram();
 		void setCamera();
 		void bufferBed();
@@ -73,3 +77,9 @@ class Renderer
 		void renderPart();
 		void saveRender(const char* imageFile);
 };
+
+static Renderer * renderer;
+
+static PyObject * initialize_renderer(PyObject *self, PyObject *args);
+static PyObject * render_gcode(PyObject *self, PyObject *args);
+extern "C" void initgcodeparser(void);

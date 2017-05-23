@@ -32,7 +32,6 @@ bool GcodeParser::code_seen(const char code, const char * line)
 
 void GcodeParser::build_vertices_lines()
 {
-	
 	if (abs(absolute[X] - relative[X]) >= eps || abs(absolute[Y] - relative[Y]) >= eps || abs(absolute[Z] - relative[Z] == 0) <= eps)
 	{
 		// from
@@ -207,6 +206,8 @@ void GcodeParser::parse_g1(const char * line)
 		bbox.zmin = min(bbox.zmin, absolute[Z]);
 		bbox.zmax = max(bbox.zmax, absolute[Z]);
 
+		bbox_valid = true;
+
 		if(draw == DRAW_LINES)
 			build_vertices_lines();
 		else
@@ -240,13 +241,13 @@ void GcodeParser::parse_g92(const char * line)
 int GcodeParser::get_number_of_lines()
 {
 	const int SZ = 1024 * 1024;
-	char * buff = (char*)malloc(SZ);
+	char * buff = new char[SZ];
 	ifstream ifs(file);
 	while (int cc = file_read(ifs, buff, SZ)) {
 		number_of_lines += count_lines(buff, cc);
 	}
 	ifs.close();
-	free(buff);
+	delete buff;
 
 	return number_of_lines;
 }
@@ -294,7 +295,6 @@ unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nvertic
 	vertex_i = 0;
 	index_i = 0;
 
-
 	// read each line of the file
 	while (!fin.eof())
 	{
@@ -302,7 +302,6 @@ unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nvertic
 		parse_line(line);
 
 		n++;
-
 		if (n-1 >= n_lines)
 			break;
 	}
@@ -346,9 +345,10 @@ void GcodeParser::parse_line(const char *line)
 	}
 }
 
-BBox * GcodeParser::get_bbox()
+bool GcodeParser::get_bbox(BBox * bbox)
 {
-	return &bbox;
+	*bbox = this->bbox;
+	return this->bbox_valid;
 }
 
 

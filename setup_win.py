@@ -63,12 +63,13 @@ plugin_ignored_packages = []
 from setuptools import setup, Extension
 gcodeparser_module = Extension('gcodeparser',
                     include_dirs = ['include'],
-                    #win32: libraries = ['glew32', 'glfw3', 'OpenGL32', 'libpngd', 'libpng', 'zlibstatd', 'zlibstat', 'python27'],
-                    libraries = [ 'EGL', 'GLESv2', 'png', 'z'],
-                    library_dirs = ['/opt/vc/lib', '/usr/local/lib'],
+                    libraries = ['glew32', 'glfw3dll', 'OpenGL32', 'libpngd', 'libpng', 'zlibstatd', 'zlibstat'], #win32
+                    #libraries = [ 'EGL', 'GLESv2', 'png', 'z'], #linux
+                    library_dirs = ['/opt/vc/lib', '/usr/local/lib', 'lib'],
                     language = "c++",
+                    #define_macros=[("DEBUG", 1)],
                     extra_compile_args=['-std=c++11'],
-                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/shader.cpp'])
+                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextGLFW.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/shader.cpp'])
 
 additional_setup_parameters = { "ext_modules": [gcodeparser_module] }
 

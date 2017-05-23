@@ -14,12 +14,6 @@
 
 using namespace std;
 
-//#ifdef __GNUC__
-//#define EXPORT extern "C"
-//#else
-//#define EXPORT extern "C"  __declspec(dllexport)
-//#endif
-
 #define eps 0.0001f
 #define X 0
 #define Y 1
@@ -67,16 +61,17 @@ class GcodeParser
 	uint8_t draw = DRAW_LINES;
 
 	struct BBox bbox;
+	bool bbox_valid = false;
 
-	bool skip = true;
-	const int nincludes = 4;
-	const char * includes[4] = { "CONTOUR", "LAYER_NO", "BRIM", "SKIRT" };
+	bool skip = false;
+	const int nincludes = 9;
+	const char * includes[9] = { "CONTOUR", "LAYER_NO", "BRIM", "SKIRT", "layer", "skirt", "solid", "outer", "inner" };
 
 public:
 	int number_of_lines = 0;
 	GcodeParser(const char *file, uint8_t draw_type);
 	~GcodeParser();
-	BBox * get_bbox();
+	bool get_bbox(BBox * bbox);
 	unsigned int get_vertices(const unsigned int n_lines, int * nvertices, float * vertices, int * nindices, short * indices);
 	void get_buffer_size(unsigned int * vertices_size, unsigned int * indices_size);
 	

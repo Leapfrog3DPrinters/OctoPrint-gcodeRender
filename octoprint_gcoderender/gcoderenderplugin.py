@@ -5,6 +5,7 @@ __author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 import os, sys, time
 import threading, subprocess
 import Queue
+import gcodeparser
 
 from flask import request, make_response, send_file, url_for, jsonify
 from tinydb import TinyDB, Query 
@@ -244,6 +245,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         """"
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
+
+        # It is important we initialize the gcoderender on this thread
+        gcodeparser.initialize()
+
         while True:
             job = self.renderJobs.get() # Will block until a job becomes available
             self._logger.debug("Job found: {0}".format(job['filename']))
@@ -283,7 +288,8 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Begin rendering");
         returncode = 1
         try:
-            returncode = subprocess.call(["gcodeparser", path, imageDest["path"]])
+            #returncode = subprocess.call(["gcodeparser", path, imageDest["path"]])
+            returncode = gcodeparser.render_gcode(path, imageDest["path"])
         except OSError as e:
             self._logger.debug("Error during process exec: %s" % e.strerror)
 

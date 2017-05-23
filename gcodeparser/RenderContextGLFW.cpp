@@ -1,5 +1,5 @@
+#ifdef _WIN32
 #include "RenderContextGLFW.h"
-
 
 void RenderContextGLFW::error_callback(int error, const char* description)
 {
@@ -13,7 +13,7 @@ bool RenderContextGLFW::activate()
 	{
 		return false;
 	}
-
+	glfwWindowHint(GLFW_DEPTH_BITS, 8);
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -38,3 +38,4 @@ RenderContextGLFW::~RenderContextGLFW()
 {
 	glfwTerminate();
 }
+#endif

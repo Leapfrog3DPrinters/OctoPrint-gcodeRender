@@ -40,26 +40,26 @@ void GcodeParser::build_vertices_lines()
 		vertices[vertex_i + 2] = absolute[Z] + offset[Z];
 
 		// normals
-		vertices[vertex_i + 3] = 0;
-		vertices[vertex_i + 4] = 0;
-		vertices[vertex_i + 5] = 0;
+		//vertices[vertex_i + 3] = 0;
+		//vertices[vertex_i + 4] = 0;
+		//vertices[vertex_i + 5] = 0;
 
 		// to
-		vertices[vertex_i + 6] = relative[X];
-		vertices[vertex_i + 7] = relative[Y];
-		vertices[vertex_i + 8] = relative[Z];
+		vertices[vertex_i + 3] = relative[X];
+		vertices[vertex_i + 4] = relative[Y];
+		vertices[vertex_i + 5] = relative[Z];
 
 		// normals
-		vertices[vertex_i + 9] = 0;
-		vertices[vertex_i + 10] = 0;
-		vertices[vertex_i + 11] = 0;
+		//vertices[vertex_i + 9] = 0;
+		//vertices[vertex_i + 10] = 0;
+		//vertices[vertex_i + 11] = 0;
 
-		int vi = vertex_i / 6;
+		int vi = vertex_i / 3;
 
 		indices[index_i] = vi;
 		indices[index_i + 1] = vi + 1;
 
-		vertex_i += 12;
+		vertex_i += 6;
 		index_i += 2;
 	}
 }
@@ -271,7 +271,7 @@ void GcodeParser::get_buffer_size(unsigned int * vertices_size, unsigned int * i
 {
 	if (draw == DRAW_LINES)
 	{
-		*vertices_size = 12 * sizeof *vertices;
+		*vertices_size = 6 * sizeof *vertices;
 		*indices_size = 2 * sizeof *indices;
 	}
 	else

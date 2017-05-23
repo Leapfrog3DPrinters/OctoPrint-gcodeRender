@@ -42,6 +42,7 @@ class Renderer
 	std::vector<buffer_info> buffers;
 	buffer_info bed_buffer;
 	int buffer_i = 0;
+	long memory_used = 0;
 
 	float * vertices;
 	short * indices;
@@ -73,7 +74,6 @@ class Renderer
 		void setCamera();
 		void bufferBed();
 		void renderBed();
-		void bufferPart();
 		void renderPart();
 		void saveRender(const char* imageFile);
 };

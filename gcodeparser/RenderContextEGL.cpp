@@ -4,7 +4,7 @@
 bool RenderContextEGL::activate()
 {
 	// Get and initialize the current display from EGL
-	EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
 	EGLint major, minor;
 
@@ -15,7 +15,7 @@ bool RenderContextEGL::activate()
 		EGL_GREEN_SIZE, 8,
 		EGL_BLUE_SIZE, 8,
 		EGL_ALPHA_SIZE, 8,
-		EGL_DEPTH_SIZE, 24,
+		EGL_DEPTH_SIZE, 8,
 		EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
 		EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,

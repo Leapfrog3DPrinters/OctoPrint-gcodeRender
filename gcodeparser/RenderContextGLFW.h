@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef _WIN32
+
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 
@@ -15,3 +17,4 @@ public:
 	~RenderContextGLFW();	
 };
 
+#endif

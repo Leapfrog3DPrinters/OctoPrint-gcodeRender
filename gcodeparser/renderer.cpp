@@ -93,13 +93,18 @@ void Renderer::draw(const float color[4], GLuint ivbo, GLuint vbo, int n, GLenum
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	assert_error("Bind buffer");
 
-	glVertexAttribPointer(position_handle, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void*)0);
-	assert_error("Position pointer");
-
 	if (draw_type == DRAW_TUBES)
 	{
+		glVertexAttribPointer(position_handle, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void*)0);
+		assert_error("Position pointer");
+
 		glVertexAttribPointer(normal_handle, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void*)(3 * sizeof(float)));
 		assert_error("Normal pointer");
+	}
+	else
+	{
+		glVertexAttribPointer(position_handle, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void*)0);
+		assert_error("Position pointer");
 	}
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ivbo);
@@ -120,20 +125,24 @@ void Renderer::draw(const float color[4], GLuint ivbo, GLuint vbo, int n, GLenum
 
 void Renderer::buffer(const int nvertices, const float * vertices, const int nindices, const short * indices, GLuint * vbo, GLuint * ivbo)
 {
+	int vertex_buffer_size = nvertices * sizeof(float);
+	int index_buffer_size = nindices * sizeof(short);
 	glGenBuffers(1, vbo);
 	assert_error("generate vertex buffer");
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 	assert_error("bind vertex buffer");
-	glBufferData(GL_ARRAY_BUFFER, nvertices * sizeof(float), vertices, GL_STATIC_DRAW);
-	assert_error("vertex buffer data");
+
+	glBufferData(GL_ARRAY_BUFFER, vertex_buffer_size, vertices, GL_STATIC_DRAW);
+	assert_error("Vertex buffer data");
 
 	glGenBuffers(1, ivbo);
 	assert_error("generate index buffer");
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ivbo);
 	assert_error("bind index buffer");
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, nindices * sizeof(short), indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_buffer_size, indices, GL_STATIC_DRAW);
 	assert_error("index buffer data");
 
+	memory_used += vertex_buffer_size + index_buffer_size;
 }
 
 void Renderer::deleteBuffer(GLuint ivbo, GLuint vbo)
@@ -202,17 +211,11 @@ void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 	// Start with a clean slate
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	this->bufferPart();
-	printf("Part buffered\n");
-
-	this->setCamera();
-	printf("Camera set\n");
+	this->renderPart();
+	printf("Part rendered\n");
 
 	this->renderBed();
 	printf("Bed rendered\n");
-
-	this->renderPart();
-	printf("Part rendered\n");
 
 	this->saveRender(imageFile);
 	printf("File saved\n");
@@ -269,14 +272,29 @@ void Renderer::setCamera()
 
 void Renderer::bufferBed()
 {
+	int bedvertices_n;
+	float * bedvertices;
 	// X, y, z, nx, ny, nz
-	const int bedvertices_n = 6 * 4;
-	float bedvertices[bedvertices_n] = {
-		0, 0, 0, 0, 0, 1.0f,
-		0, bed_depth, 0, 0, 0, 1.0f,
-		bed_width, bed_depth, 0, 0, 0, 1.0f,
-		bed_width, 0, 0, 0, 0, 1.0f
-	};
+	if (draw_type == DRAW_TUBES)
+	{
+		bedvertices_n = 24;
+		bedvertices = new float[bedvertices_n] {
+			0, 0, 0, 0, 0, 1.0f,
+			0, bed_depth, 0, 0, 0, 1.0f,
+			bed_width, bed_depth, 0, 0, 0, 1.0f,
+			bed_width, 0, 0, 0, 0, 1.0f
+		};
+	}
+	else
+	{
+		bedvertices_n = 12;
+		bedvertices = new float[bedvertices_n] {
+			0, 0, 0, 
+			0, bed_depth, 0,
+			bed_width, bed_depth, 0,
+			bed_width, 0, 0
+		};
+	}
 
 	const int bedindices_n = 6;
 	short bedindices[bedindices_n] = { 0, 1, 2, 2, 3, 0 };
@@ -285,6 +303,8 @@ void Renderer::bufferBed()
 	bed_buffer.nvertices = bedvertices_n;
 
 	buffer(bedvertices_n, bedvertices, bedindices_n, bedindices, &bed_buffer.vertex_buffer, &bed_buffer.index_buffer);
+
+	delete[] bedvertices;
 }
 
 void Renderer::renderBed()
@@ -292,33 +312,45 @@ void Renderer::renderBed()
 	draw(bed_color, bed_buffer.index_buffer, bed_buffer.vertex_buffer, bed_buffer.nindices, GL_TRIANGLES);
 }
 
-void Renderer::bufferPart()
-{
-	printf("Begin buffering part\n");
-	int nvertices, nindices;
-	while (parser->get_vertices(lines_per_run, &nvertices, vertices, &nindices, indices))
-	{
-		buffer_info buff = buffer_info();
-
-		buff.nindices = nindices;
-		buff.nvertices = nvertices;
-		buffer(nvertices, vertices, nindices, indices, &buff.vertex_buffer, &buff.index_buffer);
-
-		buffers.push_back(buff);
-	}
-}
-
 void Renderer::renderPart()
 {
-	for (unsigned int i = 0; i < buffers.size(); i++)
-	{
-		if (draw_type == DRAW_LINES)
-			draw(part_color, buffers[i].index_buffer, buffers[i].vertex_buffer, buffers[i].nindices, GL_LINES);
-		else
-			draw(part_color, buffers[i].index_buffer, buffers[i].vertex_buffer, buffers[i].nindices, GL_TRIANGLES);
+	printf("Begin rendering part\n");
+	memory_used = 0;
+	int nvertices, nindices;
+	buffer_info buff = buffer_info();
 
-		deleteBuffer(buffers[i].index_buffer, buffers[i].vertex_buffer);
+	parser->get_vertices(lines_per_run, &nvertices, vertices, &nindices, indices);
+	
+	buff.nindices = nindices;
+	buff.nvertices = nvertices;
+	
+	buffer(nvertices, vertices, nindices, indices, &buff.vertex_buffer, &buff.index_buffer);
+
+	this->setCamera();
+
+	if (draw_type == DRAW_LINES)
+		draw(part_color, buff.index_buffer, buff.vertex_buffer, buff.nindices, GL_LINES);
+	else
+		draw(part_color, buff.index_buffer, buff.vertex_buffer, buff.nindices, GL_TRIANGLES);
+	
+	deleteBuffer(buff.index_buffer, buff.vertex_buffer);
+
+	while (parser->get_vertices(lines_per_run, &nvertices, vertices, &nindices, indices))
+	{
+		buff.nindices = nindices;
+		buff.nvertices = nvertices;
+
+		buffer(nvertices, vertices, nindices, indices, &buff.vertex_buffer, &buff.index_buffer);
+
+		if (draw_type == DRAW_LINES)
+			draw(part_color, buff.index_buffer, buff.vertex_buffer, buff.nindices, GL_LINES);
+		else
+			draw(part_color, buff.index_buffer, buff.vertex_buffer, buff.nindices, GL_TRIANGLES);
+
+		deleteBuffer(buff.index_buffer, buff.vertex_buffer);
 	}
+
+	printf("Total data processed: %d kb\n", memory_used / 1000);
 }
 
 void Renderer::saveRender(const char* imageFile)
@@ -444,8 +476,10 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 	if (argc > 1)
 	{
-		initialize_renderer(NULL, NULL);
+		renderer = new Renderer(250, 250);
+		renderer->initialize();
 		renderer->renderGcode(argv[1], argv[2]);
+		getchar();
 		return 0;
 	}
 #endif

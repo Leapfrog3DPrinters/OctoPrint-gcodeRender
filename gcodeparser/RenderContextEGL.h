@@ -6,6 +6,8 @@
 
 class RenderContextEGL: public RenderContextBase
 {
+	EGLDisplay display;
+
 public:
 	RenderContextEGL(int width, int height) : RenderContextBase(width, height) {};
 	bool activate();

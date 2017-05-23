@@ -57,28 +57,39 @@ plugin_ignored_packages = []
 # Example:
 #     plugin_requires = ["someDependency==dev"]
 #     additional_setup_parameters = {"dependency_links": ["https://github.com/someUser/someRepo/archive/master.zip#egg=someDependency-dev"]}
-
-
-########################################################################################################################
 from setuptools import setup, Extension
+import sys
+
+if sys.platform == "win32":
+    import os
+    # We can't build with the default VS2008 compiler, 
+    # therefore we rely on the Windows SDK with >=VS2015
+    # see http://pywavelets.readthedocs.io/en/latest/dev/preparing_windows_build_environment.html
+    # for help.
+    os.environ["MSSdk"] = "1"
+    os.environ["DISTUTILS_USE_SDK"] = "1"
+
+    libraries = ['glew32', 'glfw3dll', 'OpenGL32', 'libpng', 'zlibstat']
+else:
+    libraries = [ 'EGL', 'GLESv2', 'png', 'z']
+
 gcodeparser_module = Extension('gcodeparser',
-                    include_dirs = ['include'],
-                    #win32: libraries = ['glew32', 'glfw3', 'OpenGL32', 'libpngd', 'libpng', 'zlibstatd', 'zlibstat', 'python27'],
-                    libraries = [ 'EGL', 'GLESv2', 'png', 'z'],
-                    library_dirs = ['/opt/vc/lib', '/usr/local/lib'],
+                    include_dirs = ['/usr/include', 'include'],
+                    libraries = libraries,
+                    library_dirs = ['/opt/vc/lib', '/usr/local/lib', 'lib'],
                     language = "c++",
                     extra_compile_args=['-std=c++11'],
-                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/shader.cpp'])
+                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/RenderContextGLFW.cpp', 'gcodeparser/shader.cpp'])
 
 additional_setup_parameters = { "ext_modules": [gcodeparser_module] }
 
+########################################################################################################################
 
 try:
 	import octoprint_setuptools
 except:
 	print("Could not import OctoPrint's setuptools, are you sure you are running that under "
 	      "the same python installation that OctoPrint is installed under?")
-	import sys
 	sys.exit(-1)
 
 

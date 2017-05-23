@@ -1,7 +1,7 @@
 #pragma once
 #define _CRT_SECURE_NO_WARNINGS
 #define _USE_MATH_DEFINES
-//#define GLEW_NO_GLU
+#define PNG_SKIP_SETJMP_CHECK
 
 // Python
 #include <Python.h>

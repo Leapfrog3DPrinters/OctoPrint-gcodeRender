@@ -394,10 +394,11 @@ void Renderer::saveRender(const char* imageFile)
 	}
 
 	// Setup Exception handling
-	if (setjmp(png_jmpbuf(png_ptr))) {
-		printf("Error during png creation\n");
-		//goto finalise;
-	}
+	//TODO: Error handling without setjmp (not thread-safe)
+	//if (setjmp(png_jmpbuf(png_ptr))) {
+	//	printf("Error during png creation\n");
+	//	//goto finalise;
+	//}
 
 	png_init_io(png_ptr, fp);
 

@@ -74,7 +74,7 @@ else:
     libraries = [ 'EGL', 'GLESv2', 'png', 'z']
 
 gcodeparser_module = Extension('gcodeparser',
-                    include_dirs = ['/usr/include', 'include'],
+                    include_dirs = ['/usr/include', '/usr/include/libpng12', 'include'],
                     libraries = libraries,
                     library_dirs = ['/opt/vc/lib', '/usr/local/lib', 'lib'],
                     language = "c++",

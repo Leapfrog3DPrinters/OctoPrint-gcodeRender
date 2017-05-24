@@ -33,7 +33,7 @@ plugin_url = "https://github.com/Leapfrog3DPrinters/OctoPrint-gcodeRender"
 plugin_license = "AGPLv3"
 
 # Any additional requirements besides OctoPrint should be listed here
-plugin_requires = ["Pillow","tinydb>=3.2.1"]
+plugin_requires = ["tinydb>=3.2.1"]
 
 ### --------------------------------------------------------------------------------------------------------------------
 ### More advanced options that you usually shouldn't have to touch follow after this point
@@ -70,8 +70,13 @@ if sys.platform == "win32":
     os.environ["DISTUTILS_USE_SDK"] = "1"
 
     libraries = ['glew32', 'glfw3dll', 'OpenGL32', 'libpng', 'zlibstat']
+    data_files = [
+        ('', ['lib/glew32.dll','lib/glfw3.dll','lib/libpng12.dll','lib/zlib1.dll'])
+    ]
+
 else:
     libraries = [ 'EGL', 'GLESv2', 'png', 'z']
+    data_files = []
 
 gcodeparser_module = Extension('gcodeparser',
                     include_dirs = ['/usr/include', '/usr/include/libpng12', 'include'],
@@ -79,9 +84,9 @@ gcodeparser_module = Extension('gcodeparser',
                     library_dirs = ['/opt/vc/lib', '/usr/local/lib', 'lib'],
                     language = "c++",
                     extra_compile_args=['-std=c++11'],
-                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/RenderContextGLFW.cpp', 'gcodeparser/shader.cpp'])
+                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/RenderContextGLFW.cpp', 'gcodeparser/shader.cpp', 'gcodeparser/interface.cpp' ])
 
-additional_setup_parameters = { "ext_modules": [gcodeparser_module] }
+additional_setup_parameters = { "ext_modules": [gcodeparser_module], "data_files": data_files }
 
 ########################################################################################################################
 

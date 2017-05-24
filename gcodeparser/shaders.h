@@ -1,4 +1,13 @@
-const char * line_vertexshader = R"(
+/*
+shaders.h
+
+Contains all vertex and fragment shaders to be compiled in OpenGL(ES)
+*/
+
+#ifndef SHADERS_H
+#define SHADERS_H 1
+
+static const char * line_vertexshader = R"(
 #ifndef GL_ES
 #version 330
 
@@ -22,7 +31,7 @@ void main()
 }
 #endif
  )";
-const char * line_fragmentshader = R"(
+static const char * line_fragmentshader = R"(
 #ifndef GL_ES
 #version 330
 
@@ -45,7 +54,7 @@ void main()
 #endif
 )";
 
-const char * tube_vertexshader = R"(
+static const char * tube_vertexshader = R"(
 #ifndef GL_ES
 #version 330
 #endif
@@ -92,7 +101,7 @@ void main(){
 	//UV = vertexUV;
 }
 )";
-const char * tube_fragmentshader = R"(
+static const char * tube_fragmentshader = R"(
 #ifndef GL_ES
 #version 330
 #endif
@@ -106,7 +115,7 @@ in vec3 EyeDirection_cameraspace;
 in vec3 LightDirection_cameraspace;
 
 // Ouput data
-out vec3 color;
+out vec4 color;
 
 // Values that stay constant for the whole mesh.
 uniform vec4 ds_Color;
@@ -148,13 +157,14 @@ void main(){
 	//  - Looking elsewhere -> < 1
 	float cosAlpha = clamp( dot( E,R ), 0,1 );
 	
-	
-	color = 
+	color = vec4(
 		// Ambient : simulates indirect lighting
 		MaterialAmbientColor +
 		// Diffuse : "color" of the object
 		MaterialDiffuseColor * LightColor * LightPower * cosTheta / (distance*distance) +
 		// Specular : reflective highlight, like a mirror
-		MaterialSpecularColor * LightColor * LightPower * pow(cosAlpha,5) / (distance*distance);
+		MaterialSpecularColor * LightColor * LightPower * pow(cosAlpha,5) / (distance*distance)
+		, 1.0);
 }
 )";
+#endif /* SHADERS_H */

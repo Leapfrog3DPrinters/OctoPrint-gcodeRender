@@ -1,10 +1,10 @@
 #include "gcodeparser.h"
 
-GcodeParser::GcodeParser(const char *file, uint8_t draw_type, BBox bed_bbox)
+GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bed_bbox)
 {
 	this->file = file;
 	this->number_of_lines = get_number_of_lines();
-	this->draw = draw_type;
+	this->draw = drawType;
 
 	// Mirror the bounding box of the bed to that of the part, so we know when we have valid
 	// part dimensions or not
@@ -43,36 +43,33 @@ bool GcodeParser::code_seen(const char code, const char * line)
 
 void GcodeParser::build_vertices_lines()
 {
-	if (abs(absolute[X] - relative[X]) >= eps || abs(absolute[Y] - relative[Y]) >= eps || abs(absolute[Z] - relative[Z] == 0) <= eps)
-	{
-		// from
-		vertices[vertex_i]	   = absolute[X] + offset[X];
-		vertices[vertex_i + 1] = absolute[Y] + offset[Y];
-		vertices[vertex_i + 2] = absolute[Z] + offset[Z];
+	// from
+	vertices[vertex_i]	   = absolute[X] + offset[X];
+	vertices[vertex_i + 1] = absolute[Y] + offset[Y];
+	vertices[vertex_i + 2] = absolute[Z] + offset[Z];
 
-		// normals
-		//vertices[vertex_i + 3] = 0;
-		//vertices[vertex_i + 4] = 0;
-		//vertices[vertex_i + 5] = 0;
+	// normals
+	//vertices[vertex_i + 3] = 0;
+	//vertices[vertex_i + 4] = 0;
+	//vertices[vertex_i + 5] = 0;
 
-		// to
-		vertices[vertex_i + 3] = relative[X];
-		vertices[vertex_i + 4] = relative[Y];
-		vertices[vertex_i + 5] = relative[Z];
+	// to
+	vertices[vertex_i + 3] = relative[X];
+	vertices[vertex_i + 4] = relative[Y];
+	vertices[vertex_i + 5] = relative[Z];
 
-		// normals
-		//vertices[vertex_i + 9] = 0;
-		//vertices[vertex_i + 10] = 0;
-		//vertices[vertex_i + 11] = 0;
+	// normals
+	//vertices[vertex_i + 9] = 0;
+	//vertices[vertex_i + 10] = 0;
+	//vertices[vertex_i + 11] = 0;
 
-		int vi = vertex_i / 3;
+	int vi = vertex_i / 3;
 
-		indices[index_i] = vi;
-		indices[index_i + 1] = vi + 1;
+	indices[index_i] = vi;
+	indices[index_i + 1] = vi + 1;
 
-		vertex_i += 6;
-		index_i += 2;
-	}
+	vertex_i += 6;
+	index_i += 2;
 }
 
 void GcodeParser::cross(const float v1[3], const float v2[3], float * result)
@@ -193,6 +190,8 @@ void GcodeParser::build_vertices_tubes()
 
 void GcodeParser::parse_g1(const char * line)
 {
+	//TODO: Work with glm vectors here
+
 	float rel[NUMCOORDS] = {};
 
 	if (is_relative) 
@@ -206,16 +205,33 @@ void GcodeParser::parse_g1(const char * line)
 			absolute[i] = relative[i];
 	}
 
-	if (absolute[E] - relative[E] > 0)
+	if (absolute[E] - relative[E] > eps
+		&&
+		(abs(absolute[X] + offset[X] - relative[X]) >= eps || abs(absolute[Y] + offset[Y] - relative[Y]) >= eps || abs(absolute[Z] + offset[Z] - relative[Z]) >= eps))
 	{
 		style = EXTRUDE;
 
-		bbox.xmin = min(bbox.xmin, absolute[X]);
-		bbox.xmax = max(bbox.xmax, absolute[X]);
-		bbox.ymin = min(bbox.ymin, absolute[Y]);
-		bbox.ymax = max(bbox.ymax, absolute[Y]);
-		bbox.zmin = min(bbox.zmin, absolute[Z]);
-		bbox.zmax = max(bbox.zmax, absolute[Z]);
+		// Update the part's bounding box if it is within
+		// the bounding box of the bed. (i.e. don't include
+		// wiping sequences etc.)
+
+		if(absolute[X] >= bed_bbox.xmin)
+			bbox.xmin = min(bbox.xmin, absolute[X]);
+
+		if (absolute[X] <= bed_bbox.xmax)
+			bbox.xmax = max(bbox.xmax, absolute[X]);
+
+		if (absolute[Y] >= bed_bbox.ymin)
+			bbox.ymin = min(bbox.ymin, absolute[Y]);
+
+		if (absolute[Y] <= bed_bbox.ymax)
+			bbox.ymax = max(bbox.ymax, absolute[Y]);
+		
+		if (absolute[Z] >= bed_bbox.zmin)
+			bbox.zmin = min(bbox.zmin, absolute[Z]);
+
+		if (absolute[Z] <= bed_bbox.zmax)
+			bbox.zmax = max(bbox.zmax, absolute[Z]);
 
 		if(draw == DRAW_LINES)
 			build_vertices_lines();
@@ -290,7 +306,7 @@ void GcodeParser::get_buffer_size(unsigned int * vertices_size, unsigned int * i
 	}
 }
 
-unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nvertices, float * vertices, int * nindices, short * indices)
+unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nVertices, float * vertices, int * nIndices, short * indices)
 {
 	if (!fin.good())
 		return 0; // exit if file not found
@@ -315,8 +331,8 @@ unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nvertic
 			break;
 	}
 
-	*nvertices = vertex_i + 1;
-	*nindices = index_i + 1;
+	*nVertices = vertex_i + 1;
+	*nIndices = index_i + 1;
 
 	return n;
 }

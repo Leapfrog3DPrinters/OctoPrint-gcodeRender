@@ -11,6 +11,7 @@ Header file for the gcode interpreter that builds the vertex arrays
 
 #define _USE_MATH_DEFINES
 
+#include <windows.h>
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
@@ -45,6 +46,9 @@ class GcodeParser
 	const char * file;
 	ifstream fin;
 
+	unsigned int throttlingInterval; // Every N gcode lines sleep for a while
+	unsigned int throttlingDuration; // The while to sleep (in ms)
+
 	const char coords[NUMCOORDS] = { 'X', 'Y', 'Z', 'E' }; // We don't care about F
 
 	float relative[NUMCOORDS] = {};
@@ -66,7 +70,7 @@ class GcodeParser
 
 	uint8_t draw = DRAW_LINES;
 
-	BBox bed_bbox;
+	BBox bedBbox;
 	BBox bbox;
 
 	bool skip = false;
@@ -75,7 +79,7 @@ class GcodeParser
 
 public:
 	int number_of_lines = 0;
-	GcodeParser(const char *file, uint8_t drawType, BBox bed_bbox);
+	GcodeParser(const char *file, uint8_t drawType, BBox bedBbox, const unsigned int throttlingInterval, const unsigned int throttlingDuration);
 	~GcodeParser();
 	bool get_bbox(BBox * bbox);
 	unsigned int get_vertices(const unsigned int n_lines, int * nVertices, float * vertices, int * nIndices, short * indices);

@@ -3,6 +3,8 @@
 
 bool RenderContextGLFW::activate()
 {
+	//TODO: Logging and error checking
+
 	// Initialise GLFW
 	if (!glfwInit())
 	{

@@ -3,12 +3,24 @@
 // Renderer constructor
 // Width: width of the images to render
 // Height: height of the images to render
-Renderer::Renderer(int width, int height)
+Renderer::Renderer(unsigned int width, unsigned int height, unsigned int throttlingInterval, unsigned int throttlingDuration)
 {
 	this->width = width;
 	this->height = height;
 
+	this->throttlingDuration = throttlingDuration;
+	this->throttlingInterval = throttlingInterval;
+
 	this->renderContext = new T_RENDERCONTEXT(width, height);
+
+	char log[512];
+
+	if(throttlingInterval > 0 && throttlingDuration > 0)
+		sprintf(log, "Renderer created. Image resolution: %dx%d. Throttling %d ms every %d lines.", width, height, throttlingDuration, throttlingInterval);
+	else
+		sprintf(log, "Renderer created. Image resolution: %dx%d. Throttling disabled.", width, height);
+
+	log_msg(debug, log);
 }
 
 
@@ -22,29 +34,23 @@ Renderer::~Renderer()
 	delete renderContext;
 }
 
-// Check for any errors from the OpenGL API and log them
-void Renderer::checkGlError(const char* part)
-{
-	GLenum error = glGetError();
-
-	if (error != 0)
-	{
-		char desc[1024];
-		sprintf(desc, "Error: %s %04x", part, error);
-		log_msg(error, desc);
-	}
-}
+/* Public methods */
 
 // Initialize the render context and, if used, GLEW
-void Renderer::initialize()
+bool Renderer::initialize()
 {
+	// Reset the last error
+	lastGlError = 0;
+
 	log_msg(debug, "Initializing renderer");
-	renderContext->activate();
+
+	if (!renderContext->activate())
+		return false;
 
 #ifdef USE_GLEW
 	if (glewInit() != GLEW_OK) {
 		log_msg(error, "Failed to initialize GLEW");
-		return;
+		return false;
 	}
 #endif
 
@@ -59,23 +65,54 @@ void Renderer::initialize()
 	// For the tubes rendering mode, we need an ambient light position
 	if (drawType == DRAW_TUBES)
 	{
-		glUniform3f(light_handle, bedWidth / 2, -50.0, 300.0);
+		glUniform3f(light_handle, (printArea.xmax + printArea.xmin) / 2, -50.0, 300.0);
 		checkGlError("Set light");
 	}
 
-	// We can re-use the bed vertices, so load them once
-	this->bufferBed();
-	log_msg(debug, "Bed buffered");
+	return lastGlError == 0;
+}
 
+void Renderer::configurePrintArea(BBox * printArea)
+{
+	this->printArea = (*printArea);
+
+	// Recreate bed buffer
+	this->deleteBuffer(&bedBuffer);
+	this->bufferBed();
+
+	char log[128];
+	sprintf(log, "Print area configured. Bounds: %.2f:%.2f %.2f:%.2f %.2f:%.2f", this->printArea.xmin, this->printArea.xmax, this->printArea.ymin, this->printArea.ymax, this->printArea.zmin, this->printArea.zmax);
+	log_msg(debug, log);
+}
+
+void Renderer::configureCamera(bool pointAtPart, float cameraDistance[3])
+{
+	this->pointCameraAtPart = pointAtPart;
+	this->cameraDistance = glm::vec3(cameraDistance[0], cameraDistance[1], cameraDistance[2]);
+
+	char log[128];
+	sprintf(log, "Camera configured. Target: %s, distance: %.2f, %.2f, %.2f", pointCameraAtPart ? "part" : "bed", this->cameraDistance[0], this->cameraDistance[1], this->cameraDistance[2]);
+	log_msg(debug, log);
 }
 
 // Render a gcode from a given gcodeFile in to a PNG imageFile
-void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
+bool Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 {
+	// Reset the last error
+	lastGlError = 0;
+	
+	// We can re-use the bed vertices, so lazy-load them once
+	if (!bedBuffered)
+	{	
+		this->bufferBed();
+		log_msg(debug, "Bed buffered");
+	}
+
+
 	// The origin offset is not included, as it is not considered a valid printing area
 	// and thus should not be rendered.
-	BBox bedBbox = { 0, bedWidth, 0, bedDepth, 0, bedHeight };
-	this->parser = new GcodeParser(gcodeFile, this->drawType, bedBbox);
+	BBox bedBbox = { 0, printArea.xmax + printArea.xmin, 0, printArea.ymax + printArea.ymin, 0, printArea.zmax + printArea.zmin };
+	this->parser = new GcodeParser(gcodeFile, this->drawType, bedBbox, this->throttlingInterval, this->throttlingDuration);
 
 	// Create buffers for the vertex and index arrays
 	unsigned int verticesSize, indicesSize;
@@ -104,7 +141,11 @@ void Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 	delete[] vertices;
 	delete[] indices;
 	delete this->parser;
+
+	return lastGlError == 0;
 }
+
+/* Private methods */
 
 // Create a GPU shader program and create handles to the shader's variables
 void Renderer::createProgram()
@@ -290,7 +331,7 @@ void Renderer::draw(const float color[4], BufferInfo * bufferInfo, GLenum elemen
 // Sets the camera 
 void Renderer::setCamera()
 {
-	BBox bbox;
+	BBox bbox = BBox();
 
 	glm::vec3 cameraPosition, cameraTarget;
 
@@ -312,8 +353,8 @@ void Renderer::setCamera()
 			float part_depth = bbox.ymax - bbox.ymin;
 
 			// Range offset from 0.0 (empty part), to 1.0 (full bed used, widest angle needed)
-			float x_factor = part_width / bedWidth;
-			float y_factor = part_depth / bedDepth;
+			float x_factor = part_width / printArea.width();
+			float y_factor = part_depth / printArea.depth();
 
 			// Use the biggest factor and scale to max 60 degrees (which is ~ the whole bed)
 			float factor_max = max(x_factor, y_factor);
@@ -323,17 +364,17 @@ void Renderer::setCamera()
 		else
 		{
 			// Point to the middle of the bed
-			cameraTarget = glm::vec3((bedWidth - bedOriginOffset[0]) / 2, (bedDepth - bedOriginOffset[1]) / 2, 0);
+			cameraTarget = glm::vec3(printArea.center_x(), printArea.center_y(), 0);
 
 			// Narrow or widen FOV
 
 			// Minimal smallest offset to bed edges
-			float x_offset_min = min(bedOriginOffset[0] + bbox.xmin, bedWidth - bedOriginOffset[0] - bbox.xmax);
-			float y_offset_min = min(bedOriginOffset[1] + bbox.ymin, bedDepth - bedOriginOffset[1] - bbox.ymax);
+			float x_offset_min = min(printArea.xmin - bbox.xmin, printArea.xmax - bbox.xmax);
+			float y_offset_min = min(printArea.ymin - bbox.ymin, printArea.ymax - bbox.ymax);
 
 			// Range offset from 0.0 (center of bed, smallest possible angle), to 1.0 (full bed used, widest angle needed)
-			float x_factor = 1.0f - x_offset_min / (bedWidth / 2);
-			float y_factor = 1.0f - y_offset_min / (bedDepth / 2);
+			float x_factor = 1.0f - x_offset_min / (printArea.width() / 2);
+			float y_factor = 1.0f - y_offset_min / (printArea.depth() / 2);
 
 			// Use the biggest factor and scale to max 60 degrees (which is ~ the whole bed)
 			float factor_max = max(x_factor, y_factor);
@@ -345,7 +386,7 @@ void Renderer::setCamera()
 	{
 		// We don't have a valid bounding box of the part
 		// Point to the middle of the bed
-		cameraTarget = glm::vec3((bedWidth - bedOriginOffset[0]) / 2, (bedDepth - bedOriginOffset[1]) / 2, 0);
+		cameraTarget = glm::vec3(printArea.center_x(), printArea.center_y(), 0);
 	}
 
 	// Move the camera away from the target
@@ -380,31 +421,25 @@ void Renderer::bufferBed()
 	int bedvertices_n;
 	float * bedvertices;
 
-	float x_min = -bedOriginOffset[0];
-	float x_max = bedWidth-bedOriginOffset[0];
-	float y_min = -bedOriginOffset[1];
-	float y_max = bedDepth - bedOriginOffset[1];
-
-
 	// X, y, z, nx, ny, nz
 	if (drawType == DRAW_TUBES)
 	{
 		bedvertices_n = 24;
 		bedvertices = new float[bedvertices_n] {
-			x_min, y_min, 0, 0, 0, 1.0f,
-			x_min, y_max, 0, 0, 0, 1.0f,
-			x_max, y_max, 0, 0, 0, 1.0f,
-			x_max, y_min, 0, 0, 0, 1.0f
+			printArea.xmin, printArea.ymin, 0, 0, 0, 1.0f,
+			printArea.xmin, printArea.ymax, 0, 0, 0, 1.0f,
+			printArea.xmax, printArea.ymax, 0, 0, 0, 1.0f,
+			printArea.xmax, printArea.ymin, 0, 0, 0, 1.0f
 		};
 	}
 	else
 	{
 		bedvertices_n = 12;
 		bedvertices = new float[bedvertices_n] {
-			x_min, y_min, 0,
-			x_min, y_max, 0,
-			x_max, y_max, 0,
-			x_max, y_min, 0,
+			printArea.xmin, printArea.ymin, 0,
+			printArea.xmin, printArea.ymax, 0,
+			printArea.xmax, printArea.ymax, 0,
+			printArea.xmax, printArea.ymin, 0,
 		};
 	}
 
@@ -412,6 +447,7 @@ void Renderer::bufferBed()
 	short bedindices[bedindices_n] = { 0, 1, 2, 2, 3, 0 };
 
 	buffer(bedvertices_n, bedvertices, bedindices_n, bedindices, &bedBuffer);
+	bedBuffered = true;
 
 	delete[] bedvertices;
 }
@@ -525,7 +561,7 @@ void Renderer::saveRender(const char* imageFile)
 
 	// Write image data row-by-row inversively (flip Y)
 	png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height * sizeof(png_bytep));
-	for (int i = 0; i < height; ++i) {
+	for (unsigned int i = 0; i < height; ++i) {
 		rows[i] = &imgData[(height - i - 1) * width * 4];
 	}
 	
@@ -545,4 +581,19 @@ void Renderer::saveRender(const char* imageFile)
 	delete[] imgData;
 
 	return;
+}
+
+// Check for any errors from the OpenGL API and log them
+void Renderer::checkGlError(const char* part)
+{
+	GLenum error = glGetError();
+
+	if (error != 0)
+	{
+		lastGlError = error;
+
+		char desc[1024];
+		sprintf(desc, "Error: %s %04x", part, error);
+		log_msg(error, desc);
+	}
 }

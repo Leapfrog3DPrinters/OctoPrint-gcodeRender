@@ -279,3 +279,5 @@ dist
 /octoprint_gcoderender/images/leapfrog.png
 /gcodeparser/gcodeparser.vcxproj.filters
 /gcodeparser/gcodeparser.vcxproj
+/*.pyd
+/*.dll

@@ -17,6 +17,8 @@ static Renderer * renderer;
 static PyObject *pyLogger;
 
 static PyObject * initialize_renderer(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+static PyObject * set_print_area(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+static PyObject * set_camera(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
 static PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
 
 extern "C" void initgcodeparser(void);

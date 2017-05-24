@@ -3,6 +3,8 @@
 
 bool RenderContextEGL::activate()
 {
+	//TODO: Logging and error checking
+
 	// Get and initialize the current display from EGL
 	display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 

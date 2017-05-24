@@ -241,13 +241,55 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         t.setDaemon(True)
         t.start()
         
+    def _initialize_parser(self):
+         # Read throttling settings from OctoPrint
+        throttling_duration = 0
+        throttling_interval = 0
+
+        if sys.platform != "win32":
+            throttling_duration = (int)(1000 * self._settings.global_get_float(["gcodeAnalysis", "throttle_normalprio"]))
+            throttling_interval = self._settings.global_get_int(["gcodeAnalysis", "throttle_lines"])
+        
+        initialized = False
+
+        try:
+            initialized = gcodeparser.initialize(width=250, 
+                                   height=250, 
+                                   throttling_interval=throttling_interval, 
+                                   throttling_duration=throttling_duration, 
+                                   logger=self._logger)
+        except Exception as e:
+            self._logger.exception("Exception while initializing gcodeparser")
+            return False
+
+        if initialized:
+
+            try:
+                gcodeparser.set_print_area(x_min=-37, x_max=328, y_min=-33, y_max=317, z_min=0, z_max=205)
+            except Exception as e:
+                self._logger.exception("Exception while setting print area")
+                return False
+
+            try:
+                gcodeparser.set_camera(target="part", distance=(-300, -300, 150))
+            except Exception as e:
+                self._logger.exception("Exception while setting camera")
+                return False
+
+            return True
+
+
     def _render_gcode_watch(self):
         """"
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
 
         # It is important we initialize the gcoderender on this thread (for the drawing context)
-        gcodeparser.initialize(logger=self._logger)
+        initialized = self._initialize_parser()
+
+        if not initialized:
+            self._logger.error("Couldn't initialize gcodeparser")
+            return
 
         while True:
             job = self.renderJobs.get() # Will block until a job becomes available

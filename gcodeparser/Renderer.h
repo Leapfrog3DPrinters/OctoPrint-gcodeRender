@@ -50,9 +50,13 @@ Saves PNG files using libpng.
 */
 class Renderer
 {
-	
-	int width = 250; // Width of image in pixels
-	int height = 250; // Height of image in pixels
+	GLenum lastGlError = 0;	// The last GL error that occured
+
+	unsigned int width = 250; // Width of image in pixels
+	unsigned int height = 250; // Height of image in pixels
+
+	unsigned int throttlingInterval; // Every N gcode lines sleep for a while
+	unsigned int throttlingDuration; // The while to sleep (in ms)
 
 	RenderContextBase* renderContext;	// The platform-specific rendering context used as drawing buffer
 	GcodeParser* parser;				// The gcode parser that provides the vertex arrays
@@ -61,16 +65,14 @@ class Renderer
 	uint16_t linesPerRun = 10000;	// Number of lines to parse before rendering
 
 	BufferInfo bedBuffer;			// Name container for the bed vertex buffers
+	bool bedBuffered = false;
 	long memoryUsed = 0;			// The amount of GPU memory used for drawing a part
 
 	float * vertices;				// Points to the current vertex array
 	short * indices;				// Points to the current vertex element array
+	
+	BBox printArea = BBox(-37.0f, 328.0f, -33.0f, 317.0f, 0.0f, 200.0f);
 
-	float bedWidth = 365.0f;		// Width (x) of the bed in mm
-	float bedDepth = 350.0f;		// Depth (y) of the bed in mm
-	float bedHeight = 200.0f;		// Height (z) of the build area in mm
-
-	glm::vec2 bedOriginOffset = { 37.0f, 33.0f };								// 0,0 position in gcode space
 	float partColor[4] = { 67.f / 255.f, 74.f / 255.f, 84.f / 255.f, 1.0f };	// Base color of the rendered part
 	float bedColor[4] = { 0.75f, 0.75f, 0.75f, 1.0f };							// Base color of the rendered bed
 	float backgroundColor[4] = { 1, 1, 1, 1 };									// Background color of the image 
@@ -88,22 +90,25 @@ class Renderer
 		camera_handle;		// Camera: the full Model-View-Projection matrix of that transforms the vertice positions to pixel positions 
 
 public:
-	Renderer(int width, int height);
+	Renderer(unsigned int width, unsigned int height, unsigned int throttlingInterval, unsigned int throttlingDuration);
 	~Renderer();
-	void initialize();
-	void renderGcode(const char* gcodeFile, const char* imageFile);
+	bool initialize();
+	void configurePrintArea(BBox * printArea);
+	void configureCamera(bool pointAtPart, float cameraDistance[3]);
+	bool renderGcode(const char* gcodeFile, const char* imageFile);
 
 private:
-	void checkGlError(const char* part);
-	void draw(const float color[4], BufferInfo * bufferInfo, GLenum element_type);
+	
+	void createProgram();
 	void buffer(const int nVertices, const float * vertices, const int nIndices, const short * indices, BufferInfo * bufferInfo);
 	void deleteBuffer(BufferInfo * bufferInfo);
-	void createProgram();
+	void draw(const float color[4], BufferInfo * bufferInfo, GLenum element_type);
 	void setCamera();
 	void bufferBed();
 	void renderBed();
 	void renderPart();
 	void saveRender(const char* imageFile);
+	void checkGlError(const char* part);
 };
 
 

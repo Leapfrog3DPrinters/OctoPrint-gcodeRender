@@ -1,21 +1,25 @@
 #include "gcodeparser.h"
 
-GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bed_bbox)
+GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bedBbox, const unsigned int throttlingInterval, const unsigned int throttlingDuration)
 {
 	this->file = file;
+
+	this->throttlingDuration = throttlingDuration;
+	this->throttlingInterval = throttlingInterval;
+
 	this->number_of_lines = get_number_of_lines();
 	this->draw = drawType;
 
 	// Mirror the bounding box of the bed to that of the part, so we know when we have valid
 	// part dimensions or not
-	this->bed_bbox = bed_bbox;
+	this->bedBbox = bedBbox;
 
-	this->bbox.xmin = bed_bbox.xmax;
-	this->bbox.xmax = bed_bbox.xmin;
-	this->bbox.ymin = bed_bbox.ymax;
-	this->bbox.ymax = bed_bbox.ymin;
-	this->bbox.zmin = bed_bbox.zmax;
-	this->bbox.zmax = bed_bbox.zmin;
+	this->bbox.xmin = bedBbox.xmax;
+	this->bbox.xmax = bedBbox.xmin;
+	this->bbox.ymin = bedBbox.ymax;
+	this->bbox.ymax = bedBbox.ymin;
+	this->bbox.zmin = bedBbox.zmax;
+	this->bbox.zmax = bedBbox.zmin;
 
 	// create a file-reading object
 	fin.open(file);
@@ -215,22 +219,22 @@ void GcodeParser::parse_g1(const char * line)
 		// the bounding box of the bed. (i.e. don't include
 		// wiping sequences etc.)
 
-		if(absolute[X] >= bed_bbox.xmin)
+		if(absolute[X] >= bedBbox.xmin)
 			bbox.xmin = min(bbox.xmin, absolute[X]);
 
-		if (absolute[X] <= bed_bbox.xmax)
+		if (absolute[X] <= bedBbox.xmax)
 			bbox.xmax = max(bbox.xmax, absolute[X]);
 
-		if (absolute[Y] >= bed_bbox.ymin)
+		if (absolute[Y] >= bedBbox.ymin)
 			bbox.ymin = min(bbox.ymin, absolute[Y]);
 
-		if (absolute[Y] <= bed_bbox.ymax)
+		if (absolute[Y] <= bedBbox.ymax)
 			bbox.ymax = max(bbox.ymax, absolute[Y]);
 		
-		if (absolute[Z] >= bed_bbox.zmin)
+		if (absolute[Z] >= bedBbox.zmin)
 			bbox.zmin = min(bbox.zmin, absolute[Z]);
 
-		if (absolute[Z] <= bed_bbox.zmax)
+		if (absolute[Z] <= bedBbox.zmax)
 			bbox.zmax = max(bbox.zmax, absolute[Z]);
 
 		if(draw == DRAW_LINES)
@@ -326,6 +330,9 @@ unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nVertic
 		fin.getline(line, MAX_CHARS_PER_LINE);
 		parse_line(line);
 
+		if (throttlingInterval > 0 && n % throttlingInterval == 0)
+			Sleep(throttlingDuration);
+
 		n++;
 		if (n-1 >= n_lines)
 			break;
@@ -374,12 +381,12 @@ bool GcodeParser::get_bbox(BBox * bbox)
 {
 	*bbox = this->bbox;
 
-	return this->bbox.xmin < bed_bbox.xmax
-		&& this->bbox.xmax > bed_bbox.xmin
-		&& this->bbox.ymin < bed_bbox.ymax
-		&& this->bbox.ymax > bed_bbox.ymin
-		&& this->bbox.zmin < bed_bbox.zmax
-		&& this->bbox.zmax > bed_bbox.zmin;
+	return this->bbox.xmin < bedBbox.xmax
+		&& this->bbox.xmax > bedBbox.xmin
+		&& this->bbox.ymin < bedBbox.ymax
+		&& this->bbox.ymax > bedBbox.ymin
+		&& this->bbox.zmin < bedBbox.zmax
+		&& this->bbox.zmax > bedBbox.zmin;
 
 }
 

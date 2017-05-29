@@ -48,8 +48,11 @@ enum LogTypes { info, warning, error, debug };
 void log_msg(int type, const char *msg);
 
 // Sleepy function for Linux
-#ifdef LINUX 
-int Sleep(int sleepMs) { return usleep(sleepMs * 1000); }
+#ifdef __linux__ 
+#include <unistd.h>
+static void Sleep(int sleepMs) { usleep(sleepMs * 1000); }
+#else
+#include <windows.h>
 #endif 
 
 // Returns a nice rgba #AABBCCDDEE color code for a float[4]

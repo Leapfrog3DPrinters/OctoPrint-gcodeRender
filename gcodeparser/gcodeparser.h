@@ -11,7 +11,6 @@ Header file for the gcode interpreter that builds the vertex arrays
 
 #define _USE_MATH_DEFINES
 
-#include <windows.h>
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>

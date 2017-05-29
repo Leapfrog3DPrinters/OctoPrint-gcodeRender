@@ -82,9 +82,10 @@ int GcodeParser::get_vertices(const unsigned int n_lines, int * nVertices, float
 		parse_line(line);
 
 		n++;
+		total_n++;
 
 		// Throttle every x lines by t milliseconds
-		if (throttlingInterval > 0 && n % throttlingInterval == 0)
+		if (throttlingInterval > 0 && total_n % throttlingInterval == 0)
 			Sleep(throttlingDuration);
 
 		if (n - 1 >= n_lines)

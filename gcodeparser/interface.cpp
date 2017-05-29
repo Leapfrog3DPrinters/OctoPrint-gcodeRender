@@ -18,8 +18,8 @@ PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *
 
 	char *kwlist[] = { "gcode_file", "image_file", NULL };
 
-	char *gcode_file = new char[512];
-	char *image_file = new char[512];
+	char *gcode_file;
+	char *image_file;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kwlist,
 		&gcode_file, &image_file))
@@ -32,9 +32,6 @@ PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *
 	result = renderer->renderGcode(gcode_file, image_file);
 	PyEval_RestoreThread(_save);
 	_save = NULL;
-
-	delete[] gcode_file;
-	delete[] image_file;
 
 	return Py_BuildValue("O", result ? Py_True : Py_False);
 }

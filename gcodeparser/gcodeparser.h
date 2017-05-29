@@ -55,6 +55,7 @@ class GcodeParser
 	ifstream fin;				// Input file stream
 	const char* strchr_pointer; // Pointer to current position in gcode line
 
+	unsigned int total_n = 0;    	 // Total number of lines parsed
 	unsigned int throttlingInterval; // Every N gcode lines sleep for a while
 	unsigned int throttlingDuration; // The while to sleep (in ms)
 

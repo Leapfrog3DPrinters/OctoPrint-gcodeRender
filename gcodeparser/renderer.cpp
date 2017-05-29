@@ -72,6 +72,7 @@ bool Renderer::initialize()
 	return lastGlError == 0;
 }
 
+// Set the print area and re-buffer the bed vertices
 void Renderer::configurePrintArea(BBox * printArea)
 {
 	this->printArea = (*printArea);
@@ -85,6 +86,7 @@ void Renderer::configurePrintArea(BBox * printArea)
 	log_msg(debug, log);
 }
 
+// Configure where to position the camera and where to point it at
 void Renderer::configureCamera(bool pointAtPart, float cameraDistance[3])
 {
 	this->pointCameraAtPart = pointAtPart;
@@ -92,6 +94,42 @@ void Renderer::configureCamera(bool pointAtPart, float cameraDistance[3])
 
 	char log[128];
 	sprintf(log, "Camera configured. Target: %s, distance: %.2f, %.2f, %.2f", pointCameraAtPart ? "part" : "bed", this->cameraDistance[0], this->cameraDistance[1], this->cameraDistance[2]);
+	log_msg(debug, log);
+}
+
+// Configure the background color of the rendered image
+void Renderer::configureBackgroundColor(float color[4])
+{
+	memcpy(this->backgroundColor, color, 4 * sizeof(float));
+	
+	glClearColor(backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3]);
+	checkGlError("Set clear color");
+
+	char log[64], colorStr[10];
+	getColorHash(colorStr, color);
+	sprintf(log, "Background color configured: %s", colorStr);
+	log_msg(debug, log);
+}
+
+// Configure the color of the rendererd bed
+void Renderer::configureBedColor(float color[4])
+{
+	memcpy(this->bedColor, color, 4 * sizeof(float));
+
+	char log[64], colorStr[10];
+	getColorHash(colorStr, color);
+	sprintf(log, "Bed color configured: %s", colorStr);
+	log_msg(debug, log);
+}
+
+// Configure the base color of the rendered part
+void Renderer::configurePartColor(float color[4])
+{
+	memcpy(this->partColor, color, 4 * sizeof(float));
+
+	char log[64], colorStr[10];
+	getColorHash(colorStr, color);
+	sprintf(log, "Part color configured: %s", colorStr);
 	log_msg(debug, log);
 }
 
@@ -134,8 +172,8 @@ bool Renderer::renderGcode(const char * gcodeFile, const char* imageFile)
 	log_msg(debug, "Bed rendered");
 
 	// Save the contents of the pixel buffer to a file
-	this->saveRender(imageFile);
-	log_msg(debug, "File saved");
+	if(this->saveRender(imageFile))
+		log_msg(debug, "File saved");
 
 	// Clean up
 	delete[] vertices;
@@ -471,8 +509,20 @@ void Renderer::renderPart()
 	BufferInfo buff;
 
 	// Extract vertices from the first n lines of gcode
-	parser->get_vertices(linesPerRun, &nVertices, vertices, &nIndices, indices);
-	
+	int nParsed = parser->get_vertices(linesPerRun, &nVertices, vertices, &nIndices, indices);
+
+	if (nParsed == -1)
+	{
+		log_msg(error, "Could not parse gcode file. Does the file exist?");
+		return;
+	}
+
+	if (nParsed == 0)
+	{
+		log_msg(debug, "Nothing to parse");
+		return;
+	}
+		
 	// Store them in the GPU
 	buffer(nVertices, vertices, nIndices, indices, &buff);
 
@@ -491,7 +541,7 @@ void Renderer::renderPart()
 	deleteBuffer(&buff);
 
 	// Continue to read, buffer and draw the rest of the gcode file
-	while (parser->get_vertices(linesPerRun, &nVertices, vertices, &nIndices, indices))
+	while (parser->get_vertices(linesPerRun, &nVertices, vertices, &nIndices, indices) > 0)
 	{
 		buffer(nVertices, vertices, nIndices, indices, &buff);
 
@@ -510,7 +560,7 @@ void Renderer::renderPart()
 }
 
 // Reads the pixel buffer and encodes the data into a PNG file
-void Renderer::saveRender(const char* imageFile)
+bool Renderer::saveRender(const char* imageFile)
 {
 	// Wait for all commands to complete before we read the buffer
 	glFlush();
@@ -522,69 +572,27 @@ void Renderer::saveRender(const char* imageFile)
 
 	// Read the pixels from the buffer
 	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, imgData);
-	checkGlError("glReadPixels");
-
-	// PNG file & data pointers
-	FILE *fp = NULL;
-	png_structp png_ptr = NULL;
-	png_infop info_ptr = NULL;
-
-	// Open file for writing (binary mode)
-	fp = fopen(imageFile, "wb");
-	if (fp == NULL) {
-		log_msg(error, "Could not open image file for writing");
-		//goto finalise;
+	if (checkGlError("glReadPixels"))
+	{
+		log_msg(error, "Couldn't read pixels from Open GL pixel buffer");
+		delete[] imgData;
+		return false;
 	}
 
-	// Initialize write structure
-	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if (png_ptr == NULL) {
-		log_msg(error, "Could not allocate PNG write struct");
-		//goto finalise;
+	if (!writePng(imageFile, imgData, width, height))
+	{
+		log_msg(error, "Couldn't save image data to PNG file");
+		delete[] imgData;
+		return false;
 	}
-
-	// Initialize info structure
-	info_ptr = png_create_info_struct(png_ptr);
-	if (info_ptr == NULL) {
-		log_msg(error, "Could not allocate PNG info struct");
-		//goto finalise;
-	}
-
-	//TODO: Error handling without setjmp (not thread-safe)
-
-	png_init_io(png_ptr, fp);
-
-	// Write header (8 bit colour depth)
-	png_set_IHDR(png_ptr, info_ptr, width, height,
-		8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
-		PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
-
-	// Write image data row-by-row inversively (flip Y)
-	png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height * sizeof(png_bytep));
-	for (unsigned int i = 0; i < height; ++i) {
-		rows[i] = &imgData[(height - i - 1) * width * 4];
-	}
-	
-	png_set_rows(png_ptr, info_ptr, rows);
-
-	// Encode and write the PNG file
-	png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
-	png_write_end(png_ptr, info_ptr);
-
-	png_free(png_ptr, rows);
-
-	// Clean up
-	if (fp != NULL) fclose(fp);
-	if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
-	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
 
 	delete[] imgData;
-
-	return;
+	return true;
 }
 
-// Check for any errors from the OpenGL API and log them
-void Renderer::checkGlError(const char* part)
+// Check for any errors from the OpenGL API and log them.
+// Returns true if an error occured
+bool Renderer::checkGlError(const char* part)
 {
 	GLenum error = glGetError();
 
@@ -595,5 +603,10 @@ void Renderer::checkGlError(const char* part)
 		char desc[1024];
 		sprintf(desc, "Error: %s %04x", part, error);
 		log_msg(error, desc);
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }

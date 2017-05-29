@@ -1,4 +1,3 @@
-#pragma once
 /*
 interface.cpp
 
@@ -7,14 +6,6 @@ of the log function and the main entry point.
 
 */
 #include "interface.h"
-
-static PyMethodDef GcodeParserMethods[] = {
-	{ "initialize", (PyCFunction)initialize_renderer, METH_VARARGS | METH_KEYWORDS, "Initialize the renderer" },
-	{ "set_print_area", (PyCFunction)set_print_area, METH_VARARGS | METH_KEYWORDS, "Set the camera target and distance" },
-	{ "set_camera", (PyCFunction)set_camera, METH_VARARGS | METH_KEYWORDS, "Define the print area" },
-	{ "render_gcode",  (PyCFunction)render_gcode, METH_VARARGS | METH_KEYWORDS, "Render a gcode file to a PNG image file." },
-	{ NULL, NULL, 0, NULL }        /* Sentinel */
-};
 
 extern "C" void initgcodeparser(void)
 {
@@ -45,6 +36,8 @@ PyObject * initialize_renderer(PyObject *self, PyObject *args, PyObject *kwargs,
 	char *kwlist[] = { "width", "height", "logger", "throttling_interval", "throttling_duration", NULL };
 
 	unsigned int width = 250, height = 250, throttlingInterval = 0, throttlingDuration = 0;
+
+	//TODO: validate throttlingInterval <= Renderer::linesPerRun
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IIOII", kwlist,
 		&width, &height, &pyLogger, &throttlingInterval, &throttlingDuration))
@@ -88,8 +81,46 @@ PyObject * set_camera(PyObject *self, PyObject *args, PyObject *kwargs, char *ke
 	return Py_BuildValue("O", Py_True);
 }
 
+PyObject * set_background_color(PyObject *self, PyObject *args)
+{
+	float backgroundColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-void log_msg(int type, char *msg)
+	if (!PyArg_ParseTuple(args, "(ffff)",
+		&backgroundColor[0], &backgroundColor[1], &backgroundColor[2], &backgroundColor[3]))
+		return NULL;
+
+	renderer->configureBackgroundColor(backgroundColor);
+
+	return Py_BuildValue("O", Py_True);
+}
+
+PyObject * set_bed_color(PyObject *self, PyObject *args)
+{
+	float bedColor[4] = { 0.75f, 0.75f, 0.75f, 1.0f };
+
+	if (!PyArg_ParseTuple(args, "(ffff)",
+		&bedColor[0], &bedColor[1], &bedColor[2], &bedColor[3]))
+		return NULL;
+
+	renderer->configureBedColor(bedColor);
+
+	return Py_BuildValue("O", Py_True);
+}
+
+PyObject * set_part_color(PyObject *self, PyObject *args)
+{
+	float partColor[4] = { 67.f / 255.f, 74.f / 255.f, 84.f / 255.f, 1.0f };
+
+	if (!PyArg_ParseTuple(args, "(ffff)",
+		&partColor[0], &partColor[1], &partColor[2], &partColor[3]))
+		return NULL;
+
+	renderer->configurePartColor(partColor);
+
+	return Py_BuildValue("O", Py_True);
+}
+
+void log_msg(int type, const char *msg)
 {
 	if (pyLogger == NULL)
 	{

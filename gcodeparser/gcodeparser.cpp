@@ -1,5 +1,17 @@
 #include "gcodeparser.h"
 
+/* TODO: This was originally C code, optimize for c++ and make use of GLM */
+
+/*
+Initialize the GcodeParser class
+
+file: Path to the gcode file
+drawType: Either DRAW_LINES (fast) or DRAW_TUBES (slow)
+bedBbox: Bounding box of the printable area
+throttlingInterval: After n lines, pause
+throttlingDuration: The duration of the pause in milliseconds
+
+*/
 GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bedBbox, const unsigned int throttlingInterval, const unsigned int throttlingDuration)
 {
 	this->file = file;
@@ -7,7 +19,10 @@ GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bedBbox, const
 	this->throttlingDuration = throttlingDuration;
 	this->throttlingInterval = throttlingInterval;
 
-	this->number_of_lines = get_number_of_lines();
+	// We used to need this to estimate our buffer size
+	// now, we read the file in chunks
+	//this->number_of_lines = get_number_of_lines();
+
 	this->draw = drawType;
 
 	// Mirror the bounding box of the bed to that of the part, so we know when we have valid
@@ -30,6 +45,88 @@ GcodeParser::~GcodeParser()
 	fin.close();
 }
 
+/*
+Parse n_lines of a given gcode file, and buffer the vertices and indices of the vertices
+that make up the model.
+
+n_lines: Number of lines to parse
+nVertices: Pointer to where to store the number of vertices
+vertices: Pointer to a buffer that stores the vertices (use GcodeParser::get_buffer_size)
+nIndices: Pointer to where to store the number of indices
+indices: Pointer to a buffer that stores the indices (use GcodeParser::get_buffer_size)
+
+*/
+int GcodeParser::get_vertices(const unsigned int n_lines, int * nVertices, float * vertices, int * nIndices, short * indices)
+{
+	if (!fin.good())
+		return -1; // exit if file not found
+
+	unsigned int n = 0; // a for-loop index
+	char line[MAX_CHARS_PER_LINE]; // line buffer
+
+
+	// We are starting with a new buffer, override the pointers
+	this->vertices = vertices;
+	this->indices = indices;
+
+	// Reset the vertex index and index of vertex index
+	vertex_i = 0;
+	index_i = 0;
+
+	// Read each line of the file
+	while (!fin.eof())
+	{
+		fin.getline(line, MAX_CHARS_PER_LINE);
+
+		// Parse it and take action (like expand the vertex buffer)
+		parse_line(line);
+
+		n++;
+
+		// Throttle every x lines by t milliseconds
+		if (throttlingInterval > 0 && n % throttlingInterval == 0)
+			Sleep(throttlingDuration);
+
+		if (n - 1 >= n_lines)
+			break;
+	}
+
+	*nVertices = vertex_i + 1;
+	*nIndices = index_i + 1;
+
+	return n;
+}
+
+// Provides the recommended buffer size for vertices and indices. These 
+// values need to be multiplied by the number of lines parsed per run.
+// (n_lines of GcodeParser::get_vertices)
+void GcodeParser::get_buffer_size(unsigned int * vertices_size, unsigned int * indices_size)
+{
+	if (draw == DRAW_LINES)
+	{
+		*vertices_size = 6 * sizeof *vertices;
+		*indices_size = 2 * sizeof *indices;
+	}
+	else
+	{
+		*vertices_size = NUM_VERTICES * 12 * sizeof *vertices;
+		*indices_size = NUM_VERTICES * 12 * sizeof *indices;
+	}
+}
+
+/* Private Methods */
+
+// Returns true if a given character is found in a Gcode line
+// and let's the class remember where
+bool GcodeParser::code_seen(const char code, const char * line)
+{
+	strchr_pointer = strchr(line, code);
+
+	return (strchr_pointer != NULL);
+}
+
+// Returns the value of the closest floating point number to the last seen code
+// Requires code_seen to be ran first
 float GcodeParser::code_value(const char * line)
 {
 	if (strchr_pointer != NULL)
@@ -38,13 +135,13 @@ float GcodeParser::code_value(const char * line)
 		return 0;
 }
 
-bool GcodeParser::code_seen(const char code, const char * line)
-{
-	strchr_pointer = strchr(line, code);
-
-	return (strchr_pointer != NULL);
-}
-
+/*
+Expands the vertex buffer with two new vertices defining
+the start of the line and the end of the line, making up a gcode path. 
+The index buffer is expanded with the indices of the start and end 
+vertex of this line. The indices are only valid within a certain buffer. I.e.
+when creating a new buffer, the indices start at 0 again.
+*/
 void GcodeParser::build_vertices_lines()
 {
 	// from
@@ -52,7 +149,12 @@ void GcodeParser::build_vertices_lines()
 	vertices[vertex_i + 1] = absolute[Y] + offset[Y];
 	vertices[vertex_i + 2] = absolute[Z] + offset[Z];
 
-	// normals
+	/* normals
+	 for now, normals are out to reduce memory
+	 if you wan't to use the cool lighting features of the tubes
+	 (see the fragment shader of the tubes)
+	 normals may come in handy.*/
+
 	//vertices[vertex_i + 3] = 0;
 	//vertices[vertex_i + 4] = 0;
 	//vertices[vertex_i + 5] = 0;
@@ -69,13 +171,16 @@ void GcodeParser::build_vertices_lines()
 
 	int vi = vertex_i / 3;
 
-	indices[index_i] = vi;
-	indices[index_i + 1] = vi + 1;
+	// Expand the index buffer
+	indices[index_i] = vi;			// Starting vertex
+	indices[index_i + 1] = vi + 1;	// Ending vertex
 
 	vertex_i += 6;
 	index_i += 2;
 }
 
+// Cross product of two vectors
+// TODO: Replace with glm::cross
 void GcodeParser::cross(const float v1[3], const float v2[3], float * result)
 {
 	result[0] = v1[Y] * v2[Z] - v2[Y] * v1[Z];
@@ -83,6 +188,8 @@ void GcodeParser::cross(const float v1[3], const float v2[3], float * result)
 	result[2] = v1[X] * v2[Y] - v2[X] * v1[Y];
 }
 
+// Normalize a vector
+// TODO: Replace with glm::normalize
 void GcodeParser::normalize(const float * v, float * result)
 {
 	float l = sqrt(v[X] * v[X] + v[Y] * v[Y] + v[Z] * v[Z]);
@@ -91,11 +198,15 @@ void GcodeParser::normalize(const float * v, float * result)
 	result[2] = v[Z] / l;
 }
 
+/*
+Expands the vertex and index buffers with the elements that allow to 
+draw 3D tubs/cylinders for each gcode path. 
+*/
 void GcodeParser::build_vertices_tubes()
 {
 	int i = vertex_i;
 
-	// Build a cylinder vertices
+	// Find the direction in which to point the cylinder
 	float direction[3] = { absolute[X] + offset[X] - relative[X], absolute[Y] + offset[Y] - relative[Y], absolute[Z] + offset[Z] - relative[Z] };
 
 	if (abs(direction[0]) <= eps && abs(direction[1]) <= eps && abs(direction[2]) <= eps)
@@ -106,6 +217,9 @@ void GcodeParser::build_vertices_tubes()
 	float perp1[3] = { 0, 0, 0 };
 	float perp2[3] = { 0, 0, 0 };
 
+	// Find the plane on which we draw the base circle
+	// this plane is perpendicular to the gcode path direction
+
 	cross(direction, dirA, temp1);
 
 	if (abs(temp1[0]) <= eps && abs(temp1[1]) <= eps && abs(temp1[2]) <= eps)
@@ -115,8 +229,9 @@ void GcodeParser::build_vertices_tubes()
 	cross(direction, perp1, temp2);
 	normalize(temp2, perp2);
 
+	// Draw two circles, one at the start of the gcode path 
+	// and one at the end.  A circle is basically a ring of NUM_VERTICES vertices
 	float angle = 0.0;
-
 	float sina, cosa;
 
 	for (int k = 0; k < NUM_VERTICES; ++k)
@@ -134,12 +249,12 @@ void GcodeParser::build_vertices_tubes()
 		vertices[i + 10] = vertices[i + 4];
 		vertices[i + 11] = vertices[i + 5];
 
-		// Calculate position of first ring
+		// Calculate position of first ring of vertices that make up a circle
 		vertices[i] = R * vertices[i + 3] + relative[X];
 		vertices[i + 1] = R * vertices[i + 4] + relative[Y];
 		vertices[i + 2] = R * vertices[i + 5] + relative[Z];
 
-		// Calculate position of second ring
+		// Calculate position of second ring of vertices that make up a circle
 		vertices[i + 6] = R * vertices[i + 3] + absolute[X] + offset[X];
 		vertices[i + 7] = R * vertices[i + 4] + absolute[Y] + offset[Y];
 		vertices[i + 8] = R * vertices[i + 5] + absolute[Z] + offset[Z];
@@ -163,7 +278,7 @@ void GcodeParser::build_vertices_tubes()
 		j += 6;
 	}
 
-	// Close the gap
+	// Close the gap (the last face that links the last vertex with the first)
 	indices[j] = (tri + vi);
 	indices[j + 1] = (tri + vi + 1);
 	indices[j + 2] = (vi);
@@ -173,7 +288,7 @@ void GcodeParser::build_vertices_tubes()
 	j += 6;
 
 
-	// Link the tubes
+	// If our previous move was extrusion too, link the tubes
 	if (!after_fly)
 	{
 		for (int tri = 0; tri < (NUM_VERTICES - 1); ++tri)
@@ -192,15 +307,21 @@ void GcodeParser::build_vertices_tubes()
 	index_i = j;
 }
 
+// Extract a gcode path from a G0/G1 line
 void GcodeParser::parse_g1(const char * line)
 {
 	//TODO: Work with glm vectors here
 
 	float rel[NUMCOORDS] = {};
 
+	// If we're moving relative, store the current coordinates 
+	// so we can add them to the new coordinates
 	if (is_relative) 
 		memcpy(&rel, &relative, NUMCOORDS * sizeof(float));
 
+	// Find the new absolute coordinates,
+	// only change the coordinates that we see
+	// in the G0/G1 line
 	for (int i = 0; i < NUMCOORDS; ++i)
 	{
 		if (code_seen(coords[i], line))
@@ -209,6 +330,7 @@ void GcodeParser::parse_g1(const char * line)
 			absolute[i] = relative[i];
 	}
 
+	// Only do something if we actually move and extrude
 	if (absolute[E] - relative[E] > eps
 		&&
 		(abs(absolute[X] + offset[X] - relative[X]) >= eps || abs(absolute[Y] + offset[Y] - relative[Y]) >= eps || abs(absolute[Z] + offset[Z] - relative[Z]) >= eps))
@@ -237,6 +359,7 @@ void GcodeParser::parse_g1(const char * line)
 		if (absolute[Z] <= bedBbox.zmax)
 			bbox.zmax = max(bbox.zmax, absolute[Z]);
 
+		// Expand the vertex and index buffers with the new coordinates
 		if(draw == DRAW_LINES)
 			build_vertices_lines();
 		else
@@ -249,10 +372,13 @@ void GcodeParser::parse_g1(const char * line)
 		after_fly = true;
 	}
 
+	// For the next run, save the current coordinates as the last coordinates
 	memcpy(&relative, &absolute, NUMCOORDS * sizeof(float));
 
 }
 
+
+// Add the current absolute position to the last position
 void GcodeParser::parse_g92(const char * line)
 {
 	float val;
@@ -267,8 +393,11 @@ void GcodeParser::parse_g92(const char * line)
 	}
 }
 
+// Deprecated: count the number of lines in thegcode file.
+// Not really much use for it anymore
 int GcodeParser::get_number_of_lines()
 {
+	int number_of_lines = 0;
 	const int SZ = 1024 * 1024;
 	char * buff = new char[SZ];
 	ifstream ifs(file);
@@ -281,11 +410,13 @@ int GcodeParser::get_number_of_lines()
 	return number_of_lines;
 }
 
+// Read N bytes from a file into a buffer
 unsigned int GcodeParser::file_read(istream & is, char * buff, int buff_size) {
 	is.read(buff, buff_size);
 	return (unsigned int)is.gcount();
 }
 
+// Count the number of lines in a text buffer
 unsigned int GcodeParser::count_lines(const char * buff, int buff_size) {
 	int newlines = 0;
 	for (int i = 0; i < buff_size; i++) {
@@ -296,58 +427,12 @@ unsigned int GcodeParser::count_lines(const char * buff, int buff_size) {
 	return newlines;
 }
 
-void GcodeParser::get_buffer_size(unsigned int * vertices_size, unsigned int * indices_size)
-{
-	if (draw == DRAW_LINES)
-	{
-		*vertices_size = 6 * sizeof *vertices;
-		*indices_size = 2 * sizeof *indices;
-	}
-	else
-	{
-		*vertices_size = NUM_VERTICES * 12 * sizeof *vertices;
-		*indices_size = NUM_VERTICES * 12 * sizeof *indices;
-	}
-}
-
-unsigned int GcodeParser::get_vertices(const unsigned int n_lines, int * nVertices, float * vertices, int * nIndices, short * indices)
-{
-	if (!fin.good())
-		return 0; // exit if file not found
-
-	unsigned int n = 0; // a for-loop index
-	char line[MAX_CHARS_PER_LINE]; // line buffer
-
-	this->vertices = vertices;
-	this->indices = indices;
-
-	vertex_i = 0;
-	index_i = 0;
-
-	// read each line of the file
-	while (!fin.eof())
-	{
-		fin.getline(line, MAX_CHARS_PER_LINE);
-		parse_line(line);
-
-		if (throttlingInterval > 0 && n % throttlingInterval == 0)
-			Sleep(throttlingDuration);
-
-		n++;
-		if (n-1 >= n_lines)
-			break;
-	}
-
-	*nVertices = vertex_i + 1;
-	*nIndices = index_i + 1;
-
-	return n;
-}
-
+// Finds the gcode in a gcode line, and takes appropriate action
+// Also determines whether the current gcode is in a segment that 
+// should be parsed or not
 void GcodeParser::parse_line(const char *line)
 {
-	// parse the line into blank-delimited tokens
-
+	// If we're in a segment (!skip) and we see a G
 	if (!skip && line[0] == 'G')
 	{
 		if (line[1] == '1' || line[1] == '0')
@@ -364,8 +449,13 @@ void GcodeParser::parse_line(const char *line)
 	}
 	else if (line[0] == ';')
 	{
+		// After any line that is a full comment, assume we're not in a 
+		// valid segment anymore
 		skip = true;
 
+		// If the comment is one of the valid segment
+		// annotations (LAYER, BRIM etc), don't skip
+		// and continue parsing
 		for (int i = 0; i < nincludes; ++i)
 		{
 			if (strstr(line, includes[i]))
@@ -377,6 +467,10 @@ void GcodeParser::parse_line(const char *line)
 	}
 }
 
+
+// Get the bounding box of the printed model
+// returns true iff each side of the bounding
+// box has a valid value.
 bool GcodeParser::get_bbox(BBox * bbox)
 {
 	*bbox = this->bbox;
@@ -387,7 +481,6 @@ bool GcodeParser::get_bbox(BBox * bbox)
 		&& this->bbox.ymax > bedBbox.ymin
 		&& this->bbox.zmin < bedBbox.zmax
 		&& this->bbox.zmax > bedBbox.zmin;
-
 }
 
 

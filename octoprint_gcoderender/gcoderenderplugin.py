@@ -247,8 +247,11 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         throttling_interval = 0
 
         if sys.platform != "win32":
+            # default 10ms
             throttling_duration = (int)(1000 * self._settings.global_get_float(["gcodeAnalysis", "throttle_normalprio"]))
-            throttling_interval = self._settings.global_get_int(["gcodeAnalysis", "throttle_lines"])
+            
+            # default 100, multiply by 50 because we're at C speed, and we're crunching more efficiently
+            throttling_interval = 50 * self._settings.global_get_int(["gcodeAnalysis", "throttle_lines"])
         
         initialized = False
 
@@ -266,14 +269,13 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
             try:
                 gcodeparser.set_print_area(x_min=-37, x_max=328, y_min=-33, y_max=317, z_min=0, z_max=205)
-            except Exception as e:
-                self._logger.exception("Exception while setting print area")
-                return False
-
-            try:
                 gcodeparser.set_camera(target="part", distance=(-300, -300, 150))
+                gcodeparser.set_background_color((1.0, 1.0, 1.0, 1.0))
+                gcodeparser.set_bed_color((0.75, 0.75, 0.75, 1.0))
+                gcodeparser.set_part_color((67.0 / 255.0, 74.0 / 255.0, 84.0 / 255.0, 1.0))
+
             except Exception as e:
-                self._logger.exception("Exception while setting camera")
+                self._logger.exception("Exception while configuring gcodeparser")
                 return False
 
             return True

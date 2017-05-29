@@ -13,6 +13,7 @@ and is lightweight (doesn't include unnecessary user-interaction methods)
 
 #ifdef __linux__
 #include <EGL/egl.h>
+#include "helpers.h"
 #include "RenderContextBase.h"
 
 class RenderContextEGL : public RenderContextBase

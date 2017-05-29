@@ -281,3 +281,4 @@ dist
 /gcodeparser/gcodeparser.vcxproj
 /*.pyd
 /*.dll
+/octoprint_gcoderender/stresstest.py

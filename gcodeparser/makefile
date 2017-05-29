@@ -5,7 +5,7 @@ MKDIR=mkdir -p
 ODIR=build
 CPPFLAGS=-g
 INC=-I /usr/include/libpng12 -I ../include -I /usr/include/python2.7
-SRCS=renderer.cpp gcodeparser.cpp RenderContextEGL.cpp RenderContextGLFW.cpp shader.cpp interface.cpp
+SRCS=renderer.cpp gcodeparser.cpp RenderContextEGL.cpp RenderContextGLFW.cpp shader.cpp pngwriter.cpp interface.cpp
 OBJS=$(subst .cc,.o,$(SRCS))
 LDFLAGS=-lm -L/opt/vc/lib -L/usr/local/lib -lEGL -lGLESv2 -lpng -lz -lpython2.7
 	

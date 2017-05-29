@@ -10,6 +10,8 @@ a helper method to log messages to Python
 #ifndef HELPERS_H
 #define HELPERS_H 1
 
+#include <stdio.h>
+
 #define DRAW_TUBES 0 // Draw 3D tubes with n faces for every 3D printed path
 #define DRAW_LINES 1 // Draw OpenGL lines without faces (far less memory required)
 
@@ -29,6 +31,7 @@ struct BBox {
 		this->zmax = zmax;
 	}
 
+	// Improve readibility of some common calculations
 	float width() { return this->xmax - this->xmin; }
 	float depth() { return this->ymax - this->ymin; }
 	float height() { return this->zmax - this->zmin; }
@@ -42,9 +45,17 @@ struct BBox {
 enum LogTypes { info, warning, error, debug };
 
 // May be used across the program to log a status message
-void log_msg(int type, char *msg);
-#endif
+void log_msg(int type, const char *msg);
 
+// Sleepy function for Linux
 #ifdef LINUX 
-int Sleep(int sleepMs) { return usleep(sleepMs * 1000); } 
+int Sleep(int sleepMs) { return usleep(sleepMs * 1000); }
 #endif 
+
+// Returns a nice rgba #AABBCCDDEE color code for a float[4]
+inline void getColorHash(char * out, float color[4])
+{
+	sprintf(out, "#%02x%02x%02x%02x", (unsigned int)color[0] * 255, (unsigned int)color[1] * 255, (unsigned int)color[2] * 255, (unsigned int)color[3] * 255);
+}
+
+#endif

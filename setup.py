@@ -84,7 +84,7 @@ gcodeparser_module = Extension('gcodeparser',
                     library_dirs = ['/opt/vc/lib', '/usr/local/lib', 'lib'],
                     language = "c++",
                     extra_compile_args=['-std=c++11'],
-                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/RenderContextGLFW.cpp', 'gcodeparser/shader.cpp', 'gcodeparser/interface.cpp' ])
+                    sources = ['gcodeparser/renderer.cpp', 'gcodeparser/gcodeparser.cpp', 'gcodeparser/RenderContextEGL.cpp', 'gcodeparser/RenderContextGLFW.cpp', 'gcodeparser/shader.cpp', 'gcodeparser/pngwriter.cpp', 'gcodeparser/interface.cpp' ])
 
 additional_setup_parameters = { "ext_modules": [gcodeparser_module], "data_files": data_files }
 

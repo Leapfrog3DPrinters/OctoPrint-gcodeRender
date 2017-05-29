@@ -7,6 +7,10 @@ Contains all vertex and fragment shaders to be compiled in OpenGL(ES)
 #ifndef SHADERS_H
 #define SHADERS_H 1
 
+// A very simple vertex shader,
+// transforms a given vertex vertexPosition_modelspace using 
+// Model-View-Projection matrix MVP
+// Compatible with both OpenGL and OpenGL ES
 static const char * line_vertexshader = R"(
 #ifndef GL_ES
 #version 330
@@ -31,6 +35,10 @@ void main()
 }
 #endif
  )";
+
+// An even simpler fragment shader
+// Colors anything in a solid ds_Color
+// Compatible with both OpenGL and OpenGL ES
 static const char * line_fragmentshader = R"(
 #ifndef GL_ES
 #version 330
@@ -54,6 +62,10 @@ void main()
 #endif
 )";
 
+
+// A vertex shader that transforms a given vertex vertexPosition_modelspace using 
+// Model-View-Projection matrix MVP
+// Provides helpers for the fragment shader to calculate the light amount and direction
 static const char * tube_vertexshader = R"(
 #ifndef GL_ES
 #version 330
@@ -61,7 +73,7 @@ static const char * tube_vertexshader = R"(
 
 // Input vertex data, different for all executions of this shader.
 layout(location = 0) in vec4 vertexPosition_modelspace;
-//layout(location = 1) in vec2 vertexUV;
+//layout(location = 1) in vec2 vertexUV; // We don't need textures
 layout(location = 2) in vec3 vertexNormal_modelspace;
 
 // Output data ; will be interpolated for each fragment.
@@ -101,6 +113,10 @@ void main(){
 	//UV = vertexUV;
 }
 )";
+
+// A fragment shader that uses ds_Color as material diffuse color
+// and applies ambient lighting and a specular effect based on
+// a vertex' normals and a light position, both provided by the vertex shader
 static const char * tube_fragmentshader = R"(
 #ifndef GL_ES
 #version 330

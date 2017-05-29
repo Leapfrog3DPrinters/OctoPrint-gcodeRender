@@ -17,6 +17,7 @@ for our needs, but works on Windows.
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 
+#include "helpers.h"
 #include "RenderContextBase.h"
 
 class RenderContextGLFW : public RenderContextBase

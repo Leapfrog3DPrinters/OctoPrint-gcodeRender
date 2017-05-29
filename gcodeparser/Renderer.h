@@ -9,8 +9,6 @@ Header file with class definition for the main Gcode renderer.
 #ifndef RENDERER_H
 #define RENDERER_H 1
 
-// Don't complain about fopen() and sprintf()
-#define _CRT_SECURE_NO_WARNINGS
 // We need PI
 #define _USE_MATH_DEFINES
 // libpng's setjmp gives compiler errors. We use exception handling without jumps anyways
@@ -22,9 +20,6 @@ Header file with class definition for the main Gcode renderer.
 #include <algorithm>
 #include <math.h>
 
-// Include libpng
-#include <png.h>
-
 // OpenGL matrix and vector calc helpers
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -34,6 +29,7 @@ Header file with class definition for the main Gcode renderer.
 #include "shader.h"
 #include "shaders.h"
 #include "gcodeparser.h"
+#include "pngwriter.h"
 
 // Name container for an OpenGL vertex+element buffer
 struct BufferInfo {
@@ -75,7 +71,7 @@ class Renderer
 
 	float partColor[4] = { 67.f / 255.f, 74.f / 255.f, 84.f / 255.f, 1.0f };	// Base color of the rendered part
 	float bedColor[4] = { 0.75f, 0.75f, 0.75f, 1.0f };							// Base color of the rendered bed
-	float backgroundColor[4] = { 1, 1, 1, 1 };									// Background color of the image 
+	float backgroundColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };						// Background color of the image 
 	
 	bool pointCameraAtPart = true;							// False: point camera at center of bed, true point camera at center of part
 	glm::vec3 cameraDistance = { -300.f, -300.f, 150.f };	// Camera distance from the part or center of the bed			
@@ -95,6 +91,9 @@ public:
 	bool initialize();
 	void configurePrintArea(BBox * printArea);
 	void configureCamera(bool pointAtPart, float cameraDistance[3]);
+	void configureBackgroundColor(float color[4]);
+	void configureBedColor(float color[4]);
+	void configurePartColor(float color[4]);
 	bool renderGcode(const char* gcodeFile, const char* imageFile);
 
 private:
@@ -107,10 +106,10 @@ private:
 	void bufferBed();
 	void renderBed();
 	void renderPart();
-	void saveRender(const char* imageFile);
-	void checkGlError(const char* part);
-};
+	bool saveRender(const char* imageFile);
 
+	bool checkGlError(const char* part);
+};
 
 #endif // !RENDERER_H
 

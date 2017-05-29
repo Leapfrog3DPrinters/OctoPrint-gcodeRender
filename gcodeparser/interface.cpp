@@ -18,15 +18,23 @@ PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *
 
 	char *kwlist[] = { "gcode_file", "image_file", NULL };
 
-	const char *gcode_file;
-	const char *image_file;
+	char *gcode_file = new char[512];
+	char *image_file = new char[512];
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kwlist,
 		&gcode_file, &image_file))
 		return NULL;
 
-	//TODO: Input validation	
-	bool result = renderer->renderGcode(gcode_file, image_file);
+	bool result;
+
+	//TODO: Input validation
+	_save = PyEval_SaveThread();
+	result = renderer->renderGcode(gcode_file, image_file);
+	PyEval_RestoreThread(_save);
+	_save = NULL;
+
+	delete[] gcode_file;
+	delete[] image_file;
 
 	return Py_BuildValue("O", result ? Py_True : Py_False);
 }
@@ -127,6 +135,10 @@ void log_msg(int type, const char *msg)
 		cout << msg << '\n';
 		return;
 	}
+
+	if(_save != NULL)
+		PyEval_RestoreThread(_save);
+
 	static PyObject *string = NULL;
 
 	// build msg-string
@@ -150,6 +162,9 @@ void log_msg(int type, const char *msg)
 	}
 
 	Py_DECREF(string);
+
+	if (_save != NULL)
+		_save = PyEval_SaveThread();
 }
 
 int main(int argc, char** argv)

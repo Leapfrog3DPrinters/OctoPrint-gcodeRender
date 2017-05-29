@@ -332,18 +332,18 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Begin rendering");
         returncode = 1
         try:
-            returncode = gcodeparser.render_gcode(path, imageDest["path"])
+            success = gcodeparser.render_gcode(path, imageDest["path"])
         except Exception as e:
             self._logger.debug("Error in Gcodeparser: %s" % e.message)
 
-        if returncode == 0:
+        if success:
             # Rendering succeeded
             self._logger.debug("Render complete: %s" % filename)
             url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
         else:
             # Rendering failed.
             # TODO: set url and path to a failed-preview-image
-            self._logger.debug("Render failed: %s" % filename)
+            self._logger.warn("Render failed: %s" % filename)
             url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
 
         # Query the database for any existing records of the gcode file. 

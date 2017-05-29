@@ -13,6 +13,7 @@ The header file for the interface with Python.
 #include "helpers.h"
 
 static Renderer * renderer;
+static PyThreadState *_save;
 
 static PyObject *pyLogger;
 

@@ -27,7 +27,7 @@ bool loadShaders(const char * vertexShaderSource, const char * fragmentShaderSou
 	if (infoLogLength > 0) {
 		std::vector<char> vertexShaderErrorMessage(infoLogLength + 1);
 		glGetShaderInfoLog(vertexShaderId, infoLogLength, NULL, &vertexShaderErrorMessage[0]);
-		log_msg(error, &vertexShaderErrorMessage[0]);
+		log_msg(debug, &vertexShaderErrorMessage[0]);
 	}
 
 	// Compile Fragment Shader
@@ -42,7 +42,7 @@ bool loadShaders(const char * vertexShaderSource, const char * fragmentShaderSou
 	if (infoLogLength > 0) {
 		std::vector<char> fragmentShaderErrorMessage(infoLogLength + 1);
 		glGetShaderInfoLog(fragmentShaderId, infoLogLength, NULL, &fragmentShaderErrorMessage[0]);
-		log_msg(error, &fragmentShaderErrorMessage[0]);
+		log_msg(debug, &fragmentShaderErrorMessage[0]);
 	}
 
 	// Link the program
@@ -61,7 +61,7 @@ bool loadShaders(const char * vertexShaderSource, const char * fragmentShaderSou
 	if (infoLogLength > 0) {
 		std::vector<char> programErrorMessage(infoLogLength + 1);
 		glGetProgramInfoLog(programId, infoLogLength, NULL, &programErrorMessage[0]);
-		log_msg(error, &programErrorMessage[0]);
+		log_msg(debug, &programErrorMessage[0]);
 	}
 
 	return result == GL_TRUE;

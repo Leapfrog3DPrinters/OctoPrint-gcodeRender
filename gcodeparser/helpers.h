@@ -47,10 +47,8 @@ enum LogTypes { info, warning, error, debug };
 // May be used across the program to log a status message
 void log_msg(int type, const char *msg);
 
-// Sleepy function for Linux
 #ifdef __linux__ 
 #include <unistd.h>
-static void Sleep(int sleepMs) { usleep(sleepMs * 1000); }
 #else
 #include <windows.h>
 #endif 

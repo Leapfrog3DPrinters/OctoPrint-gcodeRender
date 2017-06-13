@@ -12,18 +12,14 @@ The header file for the interface with Python.
 #include "Renderer.h"
 #include "helpers.h"
 
-static Renderer * renderer;
-static PyThreadState *_save;
 
-static PyObject *pyLogger;
-
-static PyObject * initialize_renderer(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
-static PyObject * set_print_area(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
-static PyObject * set_camera(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
-static PyObject * set_background_color(PyObject *self, PyObject *args);
-static PyObject * set_bed_color(PyObject *self, PyObject *args);
-static PyObject * set_part_color(PyObject *self, PyObject *args);
-static PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+PyObject * initialize_renderer(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+PyObject * set_print_area(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+PyObject * set_camera(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
+PyObject * set_background_color(PyObject *self, PyObject *args);
+PyObject * set_bed_color(PyObject *self, PyObject *args);
+PyObject * set_part_color(PyObject *self, PyObject *args);
+PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *keywords[]);
 
 extern "C" void initgcodeparser(void);
 

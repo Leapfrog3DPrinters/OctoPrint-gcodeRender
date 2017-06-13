@@ -1,4 +1,6 @@
 #include "Renderer.h"
+#include "shader.h"
+#include "shaders.h"
 
 // Renderer constructor
 // Width: width of the images to render
@@ -555,7 +557,7 @@ void Renderer::renderPart()
 
 	// Log how much GPU memory we used to draw this part
 	char resp[512];
-	sprintf(resp, "Total data processed: %d kb", memoryUsed / 1000);
+	sprintf(resp, "Total data processed: %ld kb", memoryUsed / 1000);
 	log_msg(debug, resp);
 }
 

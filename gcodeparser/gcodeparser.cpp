@@ -1,6 +1,9 @@
 #include "gcodeparser.h"
 
 /* TODO: This was originally C code, optimize for c++ and make use of GLM */
+#ifdef __linux__ 
+void Sleep(int sleepMs) { usleep(sleepMs * 1000); }
+#endif
 
 /*
 Initialize the GcodeParser class

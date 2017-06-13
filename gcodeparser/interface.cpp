@@ -7,6 +7,10 @@ of the log function and the main entry point.
 */
 #include "interface.h"
 
+static Renderer * renderer;
+static PyThreadState *_save;
+static PyObject *pyLogger;
+
 extern "C" void initgcodeparser(void)
 {
 	(void)Py_InitModule("gcodeparser", GcodeParserMethods);
@@ -16,6 +20,8 @@ PyObject * render_gcode(PyObject *self, PyObject *args, PyObject *kwargs, char *
 {
 	log_msg(debug, "Begin rendering file");
 
+	// This is throwing warnings, but PyArg_ParseTupleAndKeywords doesn't
+	// take a const char **
 	char *kwlist[] = { "gcode_file", "image_file", NULL };
 
 	char *gcode_file;

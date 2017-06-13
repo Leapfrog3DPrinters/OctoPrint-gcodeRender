@@ -7,6 +7,12 @@ We're breaking out of the class structure here, for better compatibility with li
 */
 #include "pngwriter.h"
 
+// PNG file & data pointers
+static FILE *fpng = NULL;
+static png_structp png_ptr = NULL;
+static png_infop info_ptr = NULL;
+static bool png_err = false;
+
 bool writePng(const char * imageFile, unsigned char * imgData, unsigned int width, unsigned int height)
 {
 	// Reset the error state

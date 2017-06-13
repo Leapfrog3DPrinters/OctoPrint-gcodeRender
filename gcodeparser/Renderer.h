@@ -26,14 +26,13 @@ Header file with class definition for the main Gcode renderer.
 
 #include "helpers.h"
 #include "glinit.h"
-#include "shader.h"
-#include "shaders.h"
+
 #include "gcodeparser.h"
 #include "pngwriter.h"
 
 // Name container for an OpenGL vertex+element buffer
 struct BufferInfo {
-	GLuint indexBuffer, vertexBuffer, vertexArray;
+	GLuint indexBuffer = 0, vertexBuffer = 0, vertexArray = 0;
 	int nIndices, nVertices;
 };
 

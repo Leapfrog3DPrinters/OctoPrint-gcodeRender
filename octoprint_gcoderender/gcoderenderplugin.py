@@ -246,12 +246,25 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         throttling_duration = 0
         throttling_interval = 0
 
+        # Make an exception when we're debugging on Windows
         if sys.platform != "win32":
-            # default 10ms
-            throttling_duration = (int)(1000 * self._settings.global_get_float(["gcodeAnalysis", "throttle_normalprio"]))
+            # OctoPrint default 10ms
+            default_throttle = self._settings.global_get_float(["gcodeAnalysis", "throttle_normalprio"])
+
+            # Old OctoPrint versions don't have this setting. Default to 10ms
+            if default_throttle is None: 
+                default_throttle = 0.01
+
+            throttling_duration = (int)(1000 * default_throttle)
             
-            # default 100, multiply by 50 because we're at C speed, and we're crunching more efficiently
-            throttling_interval = 50 * self._settings.global_get_int(["gcodeAnalysis", "throttle_lines"])
+            default_throttle_lines = self._settings.global_get_int(["gcodeAnalysis", "throttle_lines"])
+
+            # Old OctoPrint versions don't have this setting. Default to 100 lines
+            if default_throttle_lines is None:
+                default_throttle_lines = 100
+
+            # OctoPrint default 100, multiply by 50 because we're at C speed, and we're crunching more efficiently
+            throttling_interval = 50 * default_throttle_lines
         
         initialized = False
 

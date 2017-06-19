@@ -120,6 +120,7 @@ private:
 	int get_number_of_lines();
 	unsigned int count_lines(const char * buff, int buff_size);
 	void parse_line(const char *line);
+	float find_max_z();
 };
 
 

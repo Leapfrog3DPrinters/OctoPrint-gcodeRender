@@ -381,23 +381,25 @@ void Renderer::setCamera()
 	if (parser->get_bbox(&bbox))
 	{
 		// Never go below this fov
-		float fov_deg_min = 5.0f;
+		float fov_deg_min = 10.0f;
 
 		if (this->pointCameraAtPart)
 		{
 			// Point to the middle of the part
 			cameraTarget = glm::vec3((bbox.xmax + bbox.xmin) / 2, (bbox.ymax + bbox.ymin) / 2, (bbox.zmax + bbox.zmin) / 2);
 
-			// TODO: Determine the FOV based on the bounding box and camera angle
+			// Determine the FOV based on the bounding box and camera angle
 			float part_width = bbox.xmax - bbox.xmin;
 			float part_depth = bbox.ymax - bbox.ymin;
+			float part_height = bbox.zmax - bbox.zmin;
 
 			// Range offset from 0.0 (empty part), to 1.0 (full bed used, widest angle needed)
 			float x_factor = part_width / printArea.width();
 			float y_factor = part_depth / printArea.depth();
+			float z_factor = part_height / printArea.height();
 
 			// Use the biggest factor and scale to max 60 degrees (which is ~ the whole bed)
-			float factor_max = max(x_factor, y_factor);
+			float factor_max = max(max(x_factor, y_factor), z_factor);
 			fov_deg = max(fov_deg_min, factor_max * 60.0f);
 
 		}

@@ -39,6 +39,11 @@ GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bedBbox, const
 	this->bbox.zmin = bedBbox.zmax;
 	this->bbox.zmax = bedBbox.zmin;
 
+	float z_estimate = this->find_max_z();
+
+	if (z_estimate > 0.0f)
+		this->bbox.zmax = z_estimate;
+
 	// create a file-reading object
 	fin.open(file);
 }
@@ -46,6 +51,41 @@ GcodeParser::GcodeParser(const char *file, uint8_t drawType, BBox bedBbox, const
 GcodeParser::~GcodeParser()
 {
 	fin.close();
+}
+
+float GcodeParser::find_max_z()
+{
+	// Estimate the maximum z value of the part by reading the file backwards, 
+	// until we spot a Z. This way, we can determine the camera position after the first layer
+	// has been parsed. This in turn allow to write vertice data straight to the GPU, saving us a lot
+	// of memory.
+	std::ifstream fin_rev(this->file, std::ifstream::binary);
+
+	if (!fin_rev.good())
+		return -1.0f; // exit if file not found
+	
+	fin_rev.seekg(0, std::ios::end);
+	std::streampos size = fin_rev.tellg();
+	char * buf = new char[BUFSIZ];
+	int i = 1;
+	bool z_found = false;
+	float z = -1.0f;
+
+	for(int i=BUFSIZ;i<size;i+=BUFSIZ) {
+		fin_rev.seekg(-i-1, std::ios::end);
+		fin_rev.read(buf, (std::streamsize)BUFSIZ);
+		
+		if (code_seen('Z', buf))
+		{
+			z = code_value(buf);
+			break;
+		}
+	}
+
+	fin_rev.close();
+	delete[] buf;
+
+	return z;
 }
 
 /*

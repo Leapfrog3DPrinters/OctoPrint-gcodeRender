@@ -29,7 +29,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         # The actual render jobs
         self.renderJobs = Queue.Queue()
 
-        # Prepare loks for render queue and database access
+        # Prepare loks for render queue and database accessget_settings_defaults
         self.dbLock = threading.Lock()
 
         self.preview_extension = "png"
@@ -132,7 +132,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
     def get_settings_defaults(self):
         return dict(
-            maxPreviewFilesize=52428800 # 50 MB
+            maxPreviewFileSize=52428800 # 50 MB
         )
 
     def render_gcode(self, path, filename, modtime = None):
@@ -145,7 +145,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         if not modtime:
              modtime = os.path.getmtime(path)
-        
+        get_
         #TODO: Some error handling; or return a dummy preview
         maxFileSize = self._settings.get_int(["maxPreviewFileSize"])
         if maxFileSize > 0 and os.path.getsize(path) > maxFileSize:

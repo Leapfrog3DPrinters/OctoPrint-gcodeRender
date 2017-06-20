@@ -145,7 +145,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         if not modtime:
              modtime = os.path.getmtime(path)
-        get_
+        
         #TODO: Some error handling; or return a dummy preview
         maxFileSize = self._settings.get_int(["maxPreviewFileSize"])
         if maxFileSize > 0 and os.path.getsize(path) > maxFileSize:

@@ -132,7 +132,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
     def get_settings_defaults(self):
         return dict(
-            maxPreviewFilesize=0
+            maxPreviewFilesize=52428800 # 50 MB
         )
 
     def render_gcode(self, path, filename, modtime = None):
@@ -357,7 +357,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             # Rendering failed.
             # TODO: set url and path to a failed-preview-image
             self._logger.warn("Render failed: %s" % filename)
-            url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
+            return
 
         # Query the database for any existing records of the gcode file. 
         # Then, update or insert record

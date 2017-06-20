@@ -3,14 +3,13 @@ from __future__ import absolute_import, division
 __author__ = "Erik Heidstra <ErikHeidstra@live.nl>"
 
 import os, sys, time
-import threading
+import threading, subprocess
 import Queue
+import gcodeparser
 
 from flask import request, make_response, send_file, url_for, jsonify
 from tinydb import TinyDB, Query 
 from random import randint
-
-from octoprint_gcoderender.rendering.renderer import *
 
 import octoprint.plugin
 import octoprint.filemanager
@@ -30,18 +29,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         # The actual render jobs
         self.renderJobs = Queue.Queue()
 
-        # Prepare loks for render queue and database access
-        self.queueLock = threading.Lock()
+        # Prepare loks for render queue and database accessget_settings_defaults
         self.dbLock = threading.Lock()
 
         self.preview_extension = "png"
-
-        if sys.platform == "win32":
-            self.preview_extension = "bmp"
-
-        # Keep track of which files are (about to be) rendered
-        # Using this array, theres no need to read the full renderJobs queue
-        self.renderJobsWatch = []
 
         # Initialize tinydb
         self._prepareDatabase()
@@ -52,6 +43,9 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         # Begin watching for render jobs
         self._start_render_thread()
 
+        # Fill the queue with any jobs we may have missed
+        self._updateAllPreviews()
+
     def _prepareDatabase(self):
         self.dbLock.acquire()
         self.previews_database_path = os.path.join(self.get_plugin_data_folder(), "previews.json")
@@ -59,22 +53,32 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._previews_query = Query() # underscore for blueprintapi compatability
         self.dbLock.release()
     
-    def _updateAllPreviews(self):
+    def _updateAllPreviews(self, subFolder = None):
         """
         Reads the entire preview database, checks if there are any outdated previews (last modified of preview
         is before last modified of gcode file) and updates these.
         """ 
-        uploads_folder = self._settings.global_get_basefolder('uploads')
+        current_folder = self._settings.global_get_basefolder('uploads')
 
-        # TODO: Make this recursive
-        for entry in os.listdir(uploads_folder):
-            entry_path = os.path.join(uploads_folder, entry)
+        if subFolder:
+            current_folder = os.path.join(current_folder, subFolder)
+
+        self._logger.debug('Scanning folder {0} for render jobs'.format(current_folder))
+
+        for entry in os.listdir(current_folder):
+            entry_path = os.path.join(current_folder, entry)
+            entry_rel_path = entry
+
+            if subFolder:
+                entry_rel_path = subFolder + '/' + entry
 
             if os.path.isfile(entry_path):
-                file_type = octoprint.filemanager.get_file_type(entry)
+                file_type = octoprint.filemanager.get_file_type(entry_rel_path)
                 if(file_type):
                     if file_type[0] is "machinecode":
-                        self._updatePreview(entry_path, entry)
+                        self._updatePreview(entry_path, entry_rel_path)
+            else:
+                self._updateAllPreviews(entry_rel_path)
    
     def _updatePreview(self, path, filename):
         """
@@ -116,16 +120,19 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self.dbLock.release()
 
     def on_event(self, event, payload, *args, **kwargs):
-        # TODO: This is quire rigorous, make it more lean
-        if event == Events.UPDATED_FILES:
-            self._updateAllPreviews()
+        if event == Events.UPLOAD:
+            if "path" in payload:
+                gcodePath = os.path.join(self._settings.global_get_basefolder('uploads'), payload["path"])
+                self.render_gcode(gcodePath, payload["name"])
+            else:
+                self._logger.debug("File uploaded, but no metadata found to create the gcode preview")
 
     def is_blueprint_protected(self):
         return False
 
     def get_settings_defaults(self):
         return dict(
-            maxPreviewFilesize=0
+            maxPreviewFileSize=52428800 # 50 MB
         )
 
     def render_gcode(self, path, filename, modtime = None):
@@ -133,12 +140,12 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         Adds a render job to the render queue
         """
         if not os.path.exists(path):
+            self._logger.debug("Could not find file to render: {0}".format(path))
             return
 
         if not modtime:
              modtime = os.path.getmtime(path)
         
-        # First check if the renderqueue doesn't contain a job for the same gcode file
         #TODO: Some error handling; or return a dummy preview
         maxFileSize = self._settings.get_int(["maxPreviewFileSize"])
         if maxFileSize > 0 and os.path.getsize(path) > maxFileSize:
@@ -146,32 +153,23 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             return
 
         # Add the job to the render queue
-        self.queueLock.acquire()
-        if not filename in self.renderJobsWatch:
-            self.renderJobsWatch.append(filename) # TODO: Also remove old render job?
-            self.renderJobs.put({ "path": path, "filename": filename, "modtime": modtime})
-            self._logger.debug("Render job enqueued: %s" % filename)
-        else:
-            self._logger.debug("Already enqueued: %s" % filename)
-        self.queueLock.release()
+        self.renderJobs.put({ "path": path, "filename": filename, "modtime": modtime})
+        self._logger.debug("Render job enqueued: %s" % filename)
         
 
-    @octoprint.plugin.BlueprintPlugin.route("/previewstatus", methods=["GET"])
-    def previewstatus(self):
+    @octoprint.plugin.BlueprintPlugin.route("/previewstatus/<path:filename>", methods=["GET"])
+    def previewstatus(self, filename):
         """
         Allows to check whether a preview is available for a gcode file. 
         Query string arguments:
         filename: The gcode file to get the preview status for
         make: Whether or not to start rendering the preview, if there's no preview ready
 
-        GET /previewstatus?filename=file.gcode&make=true
+        GET /previewstatus/<filename>
         """
 
         #TODO: Add support for other statusses, such as 'rendering failed', 'gcode too big', 'queued for rendering' etc
-
-        filename = request.args.get('filename') 
-        make = request.args.get('make') == 'true'
-
+        
         if not filename:
             response = make_response('Invalid filename', 400)
         else:
@@ -182,12 +180,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             self.dbLock.release()
 
             if not db_entry:
-                if make:
-                    gcodePath = os.path.join(self._settings.global_get_basefolder('uploads'), filename)
-                    self.render_gcode(gcodePath, filename)
-                    response = make_response(jsonify({ 'status': 'rendering'}), 200)
-                else:
-                    response = make_response(jsonify({ 'status': 'notfound'}), 200)
+                response = make_response(jsonify({ 'status': 'notfound'}), 200)
             elif os.path.exists(db_entry["previewPath"]):
                 response = make_response(jsonify({ 'status': 'ready', 'previewUrl' : db_entry["previewUrl"] }), 200)
             else:
@@ -196,7 +189,7 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
 
         return self._make_no_cache(response)
 
-    @octoprint.plugin.BlueprintPlugin.route("/preview/<previewFilename>", methods=["GET"])
+    @octoprint.plugin.BlueprintPlugin.route("/preview/<path:previewFilename>", methods=["GET"])
     def preview(self, previewFilename):
         """
         Retrieves a preview for a gcode file. Returns 404 if preview was not found
@@ -248,31 +241,79 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         t.setDaemon(True)
         t.start()
         
+    def _initialize_parser(self):
+         # Read throttling settings from OctoPrint
+        throttling_duration = 0
+        throttling_interval = 0
+
+        # Make an exception when we're debugging on Windows
+        if sys.platform != "win32":
+            # OctoPrint default 10ms
+            default_throttle = self._settings.global_get_float(["gcodeAnalysis", "throttle_normalprio"])
+
+            # Old OctoPrint versions don't have this setting. Default to 10ms
+            if default_throttle is None: 
+                default_throttle = 0.01
+
+            throttling_duration = (int)(1000 * default_throttle)
+            
+            default_throttle_lines = self._settings.global_get_int(["gcodeAnalysis", "throttle_lines"])
+
+            # Old OctoPrint versions don't have this setting. Default to 100 lines
+            if default_throttle_lines is None:
+                default_throttle_lines = 100
+
+            # OctoPrint default 100, multiply by 50 because we're at C speed, and we're crunching more efficiently
+            throttling_interval = 50 * default_throttle_lines
+        
+        initialized = False
+
+        try:
+            initialized = gcodeparser.initialize(width=250, 
+                                   height=250, 
+                                   throttling_interval=throttling_interval, 
+                                   throttling_duration=throttling_duration, 
+                                   logger=self._logger)
+        except Exception as e:
+            self._logger.exception("Exception while initializing gcodeparser")
+            return False
+
+        if initialized:
+
+            try:
+                gcodeparser.set_print_area(x_min=-37, x_max=328, y_min=-33, y_max=317, z_min=0, z_max=205)
+                gcodeparser.set_camera(target="part", distance=(-300, -300, 150))
+                gcodeparser.set_background_color((1.0, 1.0, 1.0, 1.0))
+                gcodeparser.set_bed_color((0.75, 0.75, 0.75, 1.0))
+                gcodeparser.set_part_color((67.0 / 255.0, 74.0 / 255.0, 84.0 / 255.0, 1.0))
+
+            except Exception as e:
+                self._logger.exception("Exception while configuring gcodeparser")
+                return False
+
+            return True
+
+
     def _render_gcode_watch(self):
         """"
         The actual rendering thread. Monitors the render queue, and initiates the render job.
         """
-        if sys.platform == "win32" or sys.platform == "darwin":
-            self.render = RendererOpenGL()
-        else:
-            self.render = RendererOpenGLES()
 
-        #TODO: 'Soft-code'. Move these settings to the settings file
-        self.render.initialize(bedWidth = 365, bedDepth = 350, partColor = (67/255, 74/255, 84/255), bedColor = (0.75, 0.75, 0.75), width = 250, height = 250)
-        
+        # It is important we initialize the gcoderender on this thread (for the drawing context)
+        initialized = self._initialize_parser()
+
+        if not initialized:
+            self._logger.error("Couldn't initialize gcodeparser")
+            return
+
         while True:
-            self.queueLock.acquire()
-            if not self.renderJobs.empty():
-                job = self.renderJobs.get()
-                self._logger.debug("Job found: %s" % job['filename'])
-                self.queueLock.release()
-                self._render_gcode_worker(job['path'], job['filename'], job['modtime'])
-                self.queueLock.acquire()
-                self.renderJobsWatch.remove(job['filename'])
-                self.renderJobs.task_done()
-
-            self.queueLock.release()
-            time.sleep(0.5) #TODO: find another way to reduce CPU
+            job = self.renderJobs.get() # Will block until a job becomes available
+            self._logger.debug("Job found: {0}".format(job['filename']))
+            t0 = time.time()
+            self._render_gcode_worker(job['path'], job['filename'], job['modtime'])
+            t1 = time.time()
+            self._logger.info("Rendered preview for {filename} in {t:0.0f} s".format(filename=job['filename'], t=(t1-t0)))
+            self.renderJobs.task_done()
 
     def _render_gcode_worker(self, path, filename, modtime):
         """
@@ -301,11 +342,22 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         self._logger.debug("Image path: {}".format(imageDest["path"]))
        
         # This is where the magic happens
-        self.render.renderModel(path, True)
-        self.render.save(imageDest["path"])
+        self._logger.debug("Begin rendering");
+        returncode = 1
+        try:
+            success = gcodeparser.render_gcode(path, imageDest["path"])
+        except Exception as e:
+            self._logger.debug("Error in Gcodeparser: %s" % e.message)
 
-        self._logger.debug("Render complete: %s" % filename)
-        url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
+        if success:
+            # Rendering succeeded
+            self._logger.debug("Render complete: %s" % filename)
+            url = '/plugin/gcoderender/preview/%s' % imageDest["filename"]
+        else:
+            # Rendering failed.
+            # TODO: set url and path to a failed-preview-image
+            self._logger.warn("Render failed: %s" % filename)
+            return
 
         # Query the database for any existing records of the gcode file. 
         # Then, update or insert record
@@ -364,7 +416,10 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
         """
         Creates a filename for the preview. Returns both filename and (full) path
         """
-        name, _ = os.path.splitext(filename)
+
+        # Strip any subfolders and find the basename of the file
+        _, tail = os.path.split(filename)
+        name, _ = os.path.splitext(tail)
 
         images_folder = self._get_image_folder()
         
@@ -372,7 +427,6 @@ class GCodeRenderPlugin(octoprint.plugin.StartupPlugin,
             modtime = time.clock()
 
         new_filename = "{0}_{1}.{2}".format(name, modtime, self.preview_extension)
-
 
         image_path = os.path.join(images_folder, new_filename)
 

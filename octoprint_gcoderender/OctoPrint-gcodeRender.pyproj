@@ -5,15 +5,16 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>f2047f94-3468-4af7-b09d-7eccf07a4363</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>__init__.py</StartupFile>
+    <StartupFile>experimental\minimal.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>OctoPrint-gcodeRender</Name>
     <RootNamespace>OctoPrint-gcodeRender</RootNamespace>
-    <InterpreterId>{2af0f10d-7135-4994-9156-5d01c9c11b7e}</InterpreterId>
+    <InterpreterId>{dfc351a4-87a6-41b7-aa31-1cec15d85e8e}</InterpreterId>
     <InterpreterVersion>2.7</InterpreterVersion>
+    <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -24,64 +25,32 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="experimental\minimal.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="experimental\renderer_c2.py" />
+    <Compile Include="experimental\renderer_c.py" />
+    <Compile Include="experimental\renderer.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="experimental\gcodeparser.py" />
+    <Compile Include="experimental\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="gcoderenderplugin.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="rendering\gcodeparser.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="rendering\matrix44.py" />
-    <Compile Include="rendering\renderer.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="rendering\window.py" />
-    <Compile Include="rendering\pyopengles\egl.py" />
-    <Compile Include="rendering\pyopengles\gl.py" />
-    <Compile Include="rendering\pyopengles\gl2.py" />
-    <Compile Include="rendering\pyopengles\gl2ext.py" />
-    <Compile Include="rendering\pyopengles\glext.py" />
-    <Compile Include="rendering\pyopengles\prepare_constants.py" />
-    <Compile Include="rendering\pyopengles\pymouse.py" />
-    <Compile Include="rendering\pyopengles\pyopengles.py" />
-    <Compile Include="rendering\pyopengles\pyopengles_demo.py" />
-    <Compile Include="rendering\pyopengles\__init__.py" />
-    <Compile Include="rendering\util.py" />
-    <Compile Include="rendering\vector3.py" />
-    <Compile Include="rendering\__init__.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="__init__.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="images\" />
-    <Folder Include="rendering\pyopengles\" />
-    <Folder Include="rendering\pyopengles\EGL\" />
-    <Folder Include="rendering\pyopengles\GLES2\" />
-    <Folder Include="rendering\pyopengles\GLES\" />
+    <Folder Include="experimental\" />
     <Folder Include="sample\" />
-    <Folder Include="rendering\" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="rendering\pyopengles\EGL\egl.h" />
-    <Content Include="rendering\pyopengles\EGL\eglext.h" />
-    <Content Include="rendering\pyopengles\EGL\eglplatform.h" />
-    <Content Include="rendering\pyopengles\GLES2\gl2.h" />
-    <Content Include="rendering\pyopengles\GLES2\gl2ext.h" />
-    <Content Include="rendering\pyopengles\GLES2\gl2platform.h" />
-    <Content Include="rendering\pyopengles\GLES\gl.h" />
-    <Content Include="rendering\pyopengles\GLES\glext.h" />
-    <Content Include="rendering\pyopengles\GLES\glplatform.h" />
-    <Content Include="sample\acorn.gcode" />
-    <Content Include="sample\eiffel.gcode" />
-    <Content Include="sample\bolt.gcode" />
+    <Content Include="experimental\renderer_c2.png" />
+    <Content Include="experimental\renderer_c2_bolt.png" />
     <Content Include="sample\leapfrog.gcode" />
-    <Content Include="sample\leapfrog_small.gcode" />
-    <Content Include="rendering\simple.py">
-      <SubType>Code</SubType>
-    </Content>
-    <Content Include="sample\naim.gcode" />
-    <Content Include="sample\spiral.gcode" />
-    <Content Include="sample\terminator.gcode" />
   </ItemGroup>
   <ItemGroup>
     <Interpreter Include="..\..\OctoPrint\venv\">
